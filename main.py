@@ -20,6 +20,9 @@ class MainHero:
     
     def get_damage(self, amount):
         self.hp -= amount
+
+    def set_coords(self, new_x, new_y):
+        self.coords = [new_x, new_y]
         
     def get_coords(self):
         return self.coords
@@ -44,8 +47,16 @@ class MainHero:
         return self.weapons[0] if self.weapon == None else self.weapon
 
     def make_move(self, del_x=0, del_y=0):
-        self.coords[0] += del_x
-        self.coords[1] += del_y
+        self.coords[0], self.coords[1] = self.coords[0] + del_x, self.coords[1] + del_y
+        if self.coords[0] >= X * 25:
+            self.coords[0] = 0
+        elif self.coords[0] <= 0:
+            self.coords[0] = X * 25 - 20
+
+        if self.coords[1] >= Y * 25:
+            self.coords[1] = 0
+        elif self.coords[1] <= 0:
+            self.coords[1] = Y * 25 - 29
             
     def add_weapon(self, weapon):
         if type(weapon) is Weapon:
@@ -173,23 +184,21 @@ def generate():
 
 
 def save():
-    chunks_file = open("chunks.txt", "w")
-    for elem in chunks:
-        chunks_file.write(' '.join(elem) + "\n")
+    open("chunks.txt", "w").write(' '.join(chunks))
 
 
 if __name__ == "__main__":
     pygame.init()
     screen = pygame.display.set_mode((X * 25, Y * 25))
-    
-    chunks_file = open("chunks.txt", "r")
+
     flag, characters = False, []
-    chunks = list(chunks_file.read())
+    chunks = open("chunks.txt", "r").read().split()
     running = True
     clock = pygame.time.Clock()
     
     hero = MainHero([0, 0], 'name', 200)  # координаты окна
     characters.append(hero)
+    up, down, left, right = False, False, False, False 
     last_x, last_y, x, y, w, h, chunk = hero.get_coords()[0], hero.get_coords()[1], hero.get_coords()[0], hero.get_coords()[1], X, Y, generate()
     render_map(chunk)
     render_character(characters)
@@ -197,22 +206,46 @@ if __name__ == "__main__":
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                #save()
+                save()
                 running = False
+
             if event.type == pygame.KEYDOWN:
-                flag = True
-                keys = pygame.key.get_pressed()
+                keys, flag = pygame.key.get_pressed(), True
                 last_x, last_y = hero.get_coords()[0], hero.get_coords()[1]
-                if keys[pygame.K_w]:
-                    hero.make_move(del_y=-25)
+
+                if keys[pygame.K_w] :
+                    up = True
                 if keys[pygame.K_a]:
-                    hero.make_move(del_x=-25)
+                    left = True 
                 if keys[pygame.K_s]:
-                    hero.make_move(del_y=25)
+                    down = True
                 if keys[pygame.K_d]:
-                    hero.make_move(del_x=25)
+                    right = True
+                    
                 x, y = hero.get_coords()[0], hero.get_coords()[1]
-        '''if (x // w, y // h) != (last_x // w, last_y // h):
+
+            if event.type == pygame.KEYUP:
+                if keys[pygame.K_w] :
+                    up = False 
+                if keys[pygame.K_a]:
+                    left = False
+                if keys[pygame.K_s]:
+                    down = False
+                if keys[pygame.K_d]:
+                    right = False
+
+        if up:
+            hero.make_move(del_y=-5)
+        if down:
+            hero.make_move(del_y=5)
+        if left:
+            hero.make_move(del_x=-5)
+        if right:
+            hero.make_move(del_x=5)
+
+        '''if X * 25 < x or x < 0 or Y * 25 < y or y < 0:
+
+
             if f"{x // w}:{y // h}" not in chunks:
                 chunk = generate()
                 render_map(chunk)
@@ -222,12 +255,13 @@ if __name__ == "__main__":
                 for i in range(Y):
                     new_chunk.write(' '.join(str(chunk[i])) + "\n")
             else:
-                chunk = open(f"chunks/chunk{x // w}{y // h}.txt", "r").read().split("\n")
+                chunk = open(f"chunks/chunk{x // w}{y // h}.txt", "r").read().split()
                 render_map(chunk)'''
-        if flag:
+
+        if up or down or left or right:
             render_map(chunk)
             render_character(characters)
-            last_x, last_y = hero.get_coords()[0], hero.get_coords()[1]
-            pygame.display.flip()
-            clock.tick(100)
-            flag = False
+            print(hero.get_coords())
+
+        pygame.display.flip()
+        clock.tick(120)
