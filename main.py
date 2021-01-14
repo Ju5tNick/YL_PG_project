@@ -3,6 +3,12 @@ from random import randrange, choice
 
 X, Y = 40, 20
 
+#  +------TILES------+
+#  | 0 - 5   -- grass|
+#  | 6 - 8   -- water|
+#  | 9 - 11  -- sand |
+#  +-----------------+
+
 
 class MainHero:
     def __init__(self, coords, name, hp):
@@ -72,12 +78,12 @@ def render_map(chunk: list):
     for rrow in range(Y):
         for rcol in range(X):
             tile = pygame.sprite.Sprite()
-            if chunk[rrow][rcol] == 1:
-                image = pygame.image.load(f"data/images/grass/grass{str(choice(list(range(1, 7))))}.png")
-            elif chunk[rrow][rcol] == 3:
-                image = pygame.image.load(f"data/images/sand/sand{str(choice(list(range(1, 4))))}.png")
-            elif chunk[rrow][rcol] == 0:
-                image = pygame.image.load(f"data/images/water/water3{str(choice(list(range(1, 4))))}.png")
+            if chunk[rrow][rcol] in range(6):
+                image = pygame.image.load(f"data/images/grass/grass{chunk[rrow][rcol] + 1}.png")  # {str(choice(list(range(1, 7))))}.png")
+            elif chunk[rrow][rcol] in range(6, 9):
+                image = pygame.image.load(f"data/images/water/water3{chunk[rrow][rcol] - 5}.png")  # {str(choice(list(range(1, 4))))}.png")
+            elif chunk[rrow][rcol] in range(9, 12):
+                image = pygame.image.load(f"data/images/sand/sand{chunk[rrow][rcol] - 8}.png")  # {str(choice(list(range(1, 4))))}.png")
             else:
                 image = pygame.image.load(f"data/images/water/water1.png")
 
@@ -114,17 +120,17 @@ def generate():
         intermediate = []
         for j in range(X): 
          
-            if randrange(300) in range(1) and flag == False: # 0.33% шанс что новый тайл будет "началом" водоема
+            if randrange(300) in range(300) and flag == False: # 0.33% шанс что новый тайл будет "началом" водоема
                 if 2 < i < Y - 12:
                     r_lenght, r_width, flag = randrange(2, 4), randrange(7, 14), True  # длина и ширина будущего водоема
                     r_lenght_2, loc_x, r_width_2 = r_lenght, randrange(13, X - 15), r_width 
          
-            if flag and r_lenght_2 != 0 and intermediate.count(1) == loc_x:
-                intermediate.append(0)
+            if flag and r_lenght_2 != 0 and sum([intermediate.count(i) for i in range(6)]) == loc_x:
+                intermediate.append(randrange(6, 9))
                 r_lenght_2 -= 1
             
             elif len(intermediate) != X:
-                intermediate.append(1)
+                intermediate.append(randrange(6))
             
         if flag:
             if r_width - r_width_2 in range(0, int(r_width / 2)):
@@ -140,36 +146,36 @@ def generate():
     if choice([True, False, False]):  # 33% водоем будyт с песком
         for i in range(Y):  # окантовка водоемов "песком"
             for j in range(X):
-                if i < Y - 1 and chunk[i][j] in [1, 3] and chunk[i + 1][j] == 0:
-                    chunk[i][j] = 3
-                    chunk[i - 1][j] = 3 if i < Y - 2 else 1
-                    chunk[i][j - 1] = 3 if j != X - 2 else 1
+                if i < Y - 1 and chunk[i][j] in list(range(6)) + list(range(9, 12)) and chunk[i + 1][j] in list(range(6, 9)):
+                    chunk[i][j] = randrange(9, 12)
+                    chunk[i - 1][j] = randrange(9, 12) if i < Y - 2 else 1
+                    chunk[i][j - 1] = randrange(9, 12) if j != X - 2 else 1
 
-                if i - 1 != 0 and chunk[i][j] in [1, 3] and chunk[i - 1][j] == 0:
-                    chunk[i][j] = 3
+                if i - 1 != 0 and chunk[i][j] in list(range(6)) + list(range(9, 12)) and chunk[i - 1][j] in list(range(6, 9)):
+                    chunk[i][j] = randrange(9, 12)
                     if i + 1 < Y:
-                        chunk[i + 1][j] = 3 
-                    chunk[i][j - 1] = 3 if j - 2 > 0 else 1     
+                        chunk[i + 1][j] = randrange(9, 12) 
+                    chunk[i][j - 1] = randrange(9, 12) if j - 2 > 0 else 1     
 
-                if j < X - 1 and chunk[i][j] in [1, 3] and chunk[i][j + 1] == 0:
-                    chunk[i][j] = 3
-                    chunk[i][j - 1] = 3 if j < X - 2 else 1
+                if j < X - 1 and chunk[i][j] in list(range(6)) + list(range(9, 12)) and chunk[i][j + 1] in list(range(6, 9)):
+                    chunk[i][j] = randrange(9, 12)
+                    chunk[i][j - 1] = randrange(9, 12) if j < X - 2 else 1
 
-                if j - 1 > 0 and chunk[i][j] in [1, 3] and chunk[i][j - 1] == 0:
-                    chunk[i][j] = 3
-                    chunk[i][j + 1] = 3 if j - 2 > 0 else 1
+                if j - 1 > 0 and chunk[i][j] in list(range(6)) + list(range(9, 12)) and chunk[i][j - 1] in list(range(6, 9)):
+                    chunk[i][j] = randrange(9, 12)
+                    chunk[i][j + 1] = randrange(9, 12) if j - 2 > 0 else 1
 
-                if i < Y - 2 and j < X - 2 and chunk[i][j] == 0 and chunk[i + 1][j + 1] == 1:
-                    chunk[i + 1][j + 1] = 3 
-                if i - 2 != 0 and j < X - 2 and chunk[i][j] == 0 and chunk[i - 1][j + 1] == 1:
-                    chunk[i - 1][j + 1] = 3
+                if i < Y - 2 and j < X - 2 and chunk[i][j] in list(range(6, 9)) and chunk[i + 1][j + 1] in list(range(6)):
+                    chunk[i + 1][j + 1] = randrange(9, 12) 
+                if i - 2 != 0 and j < X - 2 and chunk[i][j] in list(range(6, 9)) and chunk[i - 1][j + 1] in list(range(6)):
+                    chunk[i - 1][j + 1] = randrange(9, 12)
     return chunk
 
 
 def save():
     chunks_file = open("chunks.txt", "w")
     for elem in chunks:
-        chunks_file.write(''.join(elem) + "\n")
+        chunks_file.write(' '.join(elem) + "\n")
 
 
 if __name__ == "__main__":
@@ -214,7 +220,7 @@ if __name__ == "__main__":
                 chunks.append(f"{x // w}:{y // h}")
                 new_chunk = open(f"chunks/chunk{x // w}{y // h}.txt", "w")
                 for i in range(Y):
-                    new_chunk.write(''.join(str(chunk[i])) + "\n")
+                    new_chunk.write(' '.join(str(chunk[i])) + "\n")
             else:
                 chunk = open(f"chunks/chunk{x // w}{y // h}.txt", "r").read().split("\n")
                 render_map(chunk)'''
