@@ -4,11 +4,11 @@ from random import randrange, choice
 
 X, Y = 40, 20
 
-#  +------TILES------+
-#  | 0 - 5   -- grass|
-#  | 6 - 8   -- water|
-#  | 9 - 11  -- sand |
-#  +-----------------+
+#  +-------TILES------+
+#  | 0 - 5   -- grass |
+#  | 6 - 8   -- water |
+#  | 9 - 11  -- sand  |
+#  +------------------+
 
 
 class MainHero:
@@ -25,6 +25,9 @@ class MainHero:
     def set_coords(self, new_x, new_y):
         self.coords = [new_x, new_y]
         
+    def flip_image(self):
+        self.image = pygame.transform.flip(self.image, 90, 0)
+
     def get_coords(self):
         return self.coords
 
@@ -49,23 +52,13 @@ class MainHero:
 
     def make_move(self, del_x=0, del_y=0):
         self.coords[0], self.coords[1] = self.coords[0] + del_x, self.coords[1] + del_y
-        if self.coords[0] >= X * 25:
-            self.coords[0] = 0
-        elif self.coords[0] <= 0:
-            self.coords[0] = X * 25 - 20
 
-        if self.coords[1] >= Y * 25:
-            self.coords[1] = 0
-        elif self.coords[1] <= 0:
-            self.coords[1] = Y * 25 - 29
-            
     def add_weapon(self, weapon):
         if type(weapon) is Weapon:
             self.weapons.append(weapon)
             self.weapon = weapon
             return f'Подобрал {weapon.get_name().lower()}'
-        else:
-            return 'Это не оружие'
+        return 'Это не оружие'
             
     def next_weapon(self):
         if self.get_weapon() == None:
@@ -85,25 +78,24 @@ class MainHero:
         return f'Полечился, теперь здоровья {self.hp}'
 
 
-def render_map(chunk: list, flag=False):
+def render_map(chunk: list):
     render_map = pygame.sprite.Group()
-    if flag:
-        for rrow in range(Y):
-            for rcol in range(X):
-                tile = pygame.sprite.Sprite()
-                if chunk[rrow][rcol] in range(6):
-                    image = pygame.image.load(f"data/images/grass/grass{chunk[rrow][rcol] + 1}.png")  # {str(choice(list(range(1, 7))))}.png")
-                elif chunk[rrow][rcol] in range(6, 9):
-                    image = pygame.image.load(f"data/images/water/water3{chunk[rrow][rcol] - 5}.png")  # {str(choice(list(range(1, 4))))}.png")
-                elif chunk[rrow][rcol] in range(9, 12):
-                    image = pygame.image.load(f"data/images/sand/sand{chunk[rrow][rcol] - 8}.png")  # {str(choice(list(range(1, 4))))}.png")
-                else:
-                    image = pygame.image.load(f"data/images/water/water1.png")
+    for rrow in range(Y):
+        for rcol in range(X):
+            tile = pygame.sprite.Sprite()
+            if chunk[rrow][rcol] in range(6):
+                image = pygame.image.load(f"data/images/grass/grass{chunk[rrow][rcol] + 1}.png")  # {str(choice(list(range(1, 7))))}.png")
+            elif chunk[rrow][rcol] in range(6, 9):
+                image = pygame.image.load(f"data/images/water/water3{chunk[rrow][rcol] - 5}.png")  # {str(choice(list(range(1, 4))))}.png")
+            elif chunk[rrow][rcol] in range(9, 12):
+                image = pygame.image.load(f"data/images/sand/sand{chunk[rrow][rcol] - 8}.png")  # {str(choice(list(range(1, 4))))}.png")
+            else:
+                image = pygame.image.load(f"data/images/water/water1.png")
 
-                tile.image = image
-                tile.rect = image.get_rect()
-                tile.rect.x, tile.rect.y = rcol * 25, rrow * 25
-                render_map.add(tile)
+            tile.image = image
+            tile.rect = image.get_rect()
+            tile.rect.x, tile.rect.y = rcol * 25, rrow * 25
+            render_map.add(tile)
     return render_map
 
 
@@ -197,11 +189,11 @@ if __name__ == "__main__":
     running = True
     clock = pygame.time.Clock()
     
-    hero = MainHero([0, 0], 'name', 200)  # координаты окна
+    hero = MainHero([10, 10], 'name', 200)  # координаты окна
     characters.append(hero)
     up, down, left, right = False, False, False, False 
     last_x, last_y, x, y, w, h, chunk = hero.get_coords()[0], hero.get_coords()[1], hero.get_coords()[0], hero.get_coords()[1], X, Y, generate()
-    game_map = render_map(chunk, flag=True)
+    game_map = render_map(chunk)
     game_map.draw(screen)
     render_character(characters)
 
@@ -218,13 +210,17 @@ if __name__ == "__main__":
                 if keys[pygame.K_w] :
                     up = True
                 if keys[pygame.K_a]:
-                    left = True 
+                    if left != True:
+                        hero.flip_image()
+                    left = True
                 if keys[pygame.K_s]:
                     down = True
                 if keys[pygame.K_d]:
+                    if right != True:
+                        hero.flip_image()
                     right = True
                     
-                x, y = hero.get_coords()[0], hero.get_coords()[1]
+                
 
             if event.type == pygame.KEYUP:
                 if keys[pygame.K_w] :
@@ -245,20 +241,39 @@ if __name__ == "__main__":
         if right:
             hero.make_move(del_x=5)
 
-        '''if X * 25 < x or x < 0 or Y * 25 < y or y < 0:
+        x, y = hero.get_coords()[0], hero.get_coords()[1]
 
-
+        if X * 25 <= x or x <= 0 or Y * 25 <= y or y <= 0:
             if f"{x // w}:{y // h}" not in chunks:
                 chunk = generate()
-                render_map(chunk)
+                game_map = render_map(chunk)
 
                 chunks.append(f"{x // w}:{y // h}")
                 new_chunk = open(f"chunks/chunk{x // w}{y // h}.txt", "w")
                 for i in range(Y):
-                    new_chunk.write(' '.join(str(chunk[i])) + "\n")
+                    new_chunk.write(' '.join([str(j) for j in chunk[i]]) + "\n")
+                new_chunk.close()
             else:
-                chunk = open(f"chunks/chunk{x // w}{y // h}.txt", "r").read().split()
-                render_map(chunk)'''
+                chunk = []
+                file = open(f"chunks/chunk{x // w}{y // h}.txt", "r").read().split('\n')
+                for elem in file:
+                    chunk.append([int(el) for el in elem.split()])
+                if len(chunk) != Y:
+                    del chunk[-1]
+                #file.close()
+                game_map = render_map(chunk)
+
+        if X * 25 <= hero.get_coords()[0]:
+            hero.set_coords(0 , hero.get_coords()[1])
+
+        elif hero.get_coords()[0] <= 0:
+            hero.set_coords(X * 25, hero.get_coords()[1])
+
+        if Y * 25 <= hero.get_coords()[1]:
+            hero.set_coords(hero.get_coords()[0], 0)
+
+        elif hero.get_coords()[1] <= 0:
+            hero.set_coords(hero.get_coords()[0], Y * 25)
 
         if up or down or left or right:
             game_map.draw(screen)
