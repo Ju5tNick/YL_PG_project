@@ -32,3 +32,6 @@ class Enemy:
     
     def hit(self, hero):
         hero.base_hp -= self.damage + __import__("random").randint(-(self.damage // 10), self.damage // 10)
+        
+    def get_stats(self):
+        return (self.name, self.damage, self.health, self.speed, self.range)
