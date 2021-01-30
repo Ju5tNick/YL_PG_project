@@ -1,11 +1,12 @@
 class Enemy:
-    def __init__(self, name, base_damage, base_health, base_speed, inventory, coords, gold_drops, xp_drops):
+    def __init__(self, name, base_damage, base_health, base_speed, inventory, coords, range, gold_drops, xp_drops):
         self.name = name
         self.damage = base_damage
         self.health = base_health
         self.speed = base_speed
         self.inventory = inventory
         self.coords = coords
+        self.range = range
         for item in inventory:
             if item.type == "health":
                 self.health += item.effect_value
