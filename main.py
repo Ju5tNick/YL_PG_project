@@ -1,5 +1,4 @@
 import pygame
-import numpy
 from random import randrange, choice
 
 X, Y = 40, 20
@@ -11,10 +10,49 @@ X, Y = 40, 20
 #  +------------------+
 
 
-class MainHero:
+class MainHero(pygame.sprite.Sprite):
     def __init__(self, coords, name, hp):
+        super().__init__(all_sprites)
         self.coords, self.hp, self.name, self.weapons, self.weapon = coords, hp, name, [], None
-        self.image = pygame.image.load(f"data/images/mainhero/knight.png")
+        self.rect, self.counter = pygame.Rect(coords[0], coords[1], 19, 31), 0
+
+        self.moves = {
+            "up": (0, -2), "down": (0, 2),
+            "left": (-2, 0), "right": (2, 0)
+            }
+
+        self.still = {
+            "up": pygame.image.load("data/images/mainhero/knight11.png"),
+            "down": pygame.image.load("data/images/mainhero/knight2.png"),
+            "left": pygame.image.load("data/images/mainhero/knight5.png"),
+            "right": pygame.image.load("data/images/mainhero/knight8.png")
+           }
+
+        self.directions = {
+            "up": [pygame.image.load("data/images/mainhero/knight9.png"), pygame.image.load("data/images/mainhero/knight10.png")],
+            "down": [pygame.image.load("data/images/mainhero/knight0.png"), pygame.image.load("data/images/mainhero/knight1.png")],
+            "left": [pygame.image.load("data/images/mainhero/knight3.png"), pygame.image.load("data/images/mainhero/knight4.png")],
+            "right": [pygame.image.load("data/images/mainhero/knight7.png"), pygame.image.load("data/images/mainhero/knight6.png")]
+            }
+
+        self.cur_frame = 0
+        self.image = pygame.image.load("data/images/mainhero/knight2.png")
+        self.rect = self.rect.move(coords[0], coords[1])
+
+    def move(self, direction, stop=False):
+        self.rect = self.rect.move(*self.moves[direction])
+        if stop:
+            self.image = self.still[direction]
+        else:
+            self.update(direction)
+
+    def update(self, direction):
+        if self.counter == 5:
+            self.frames = self.directions[direction]
+            self.cur_frame = (self.cur_frame + 1) % len(self.frames)
+            self.image = self.frames[self.cur_frame]
+            self.counter = 0
+        self.counter += 1
 
     def is_alive(self):
         return True if self.hp > 0 else False
@@ -23,13 +61,10 @@ class MainHero:
         self.hp -= amount
 
     def set_coords(self, new_x, new_y):
-        self.coords = [new_x, new_y]
-        
-    def flip_image(self):
-        self.image = pygame.transform.flip(self.image, 90, 0)
+        self.rect.x, self.rect.y = new_x, new_y
 
     def get_coords(self):
-        return self.coords
+        return (self.rect.x, self.rect.y)
 
     def get_weapons(self):
         return self.weapons
@@ -78,6 +113,7 @@ class MainHero:
         return f'Полечился, теперь здоровья {self.hp}'
 
 
+
 def render_map(chunk: list):
     render_map = pygame.sprite.Group()
     for rrow in range(Y):
@@ -97,18 +133,6 @@ def render_map(chunk: list):
             tile.rect.x, tile.rect.y = rcol * 25, rrow * 25
             render_map.add(tile)
     return render_map
-
-
-def render_character(characters):
-    loc_of_char = pygame.sprite.Group()
-    for char in characters:
-        tile = pygame.sprite.Sprite()
-        tile.image = char.get_image()
-        tile.rect = tile.image.get_rect()
-        tile.rect.x, tile.rect.y = char.get_coords()[0], char.get_coords()[1]
-        loc_of_char.add(tile)
-    loc_of_char.draw(screen)
-    pygame.display.flip()
 
 
 def load_image(name, colorkey=None):
@@ -184,62 +208,64 @@ if __name__ == "__main__":
     pygame.init()
     screen = pygame.display.set_mode((X * 25, Y * 25))
 
-    characters = []
+    all_sprites = pygame.sprite.Group()
     chunks = open("chunks.txt", "r").read().split()
     running = True
     clock = pygame.time.Clock()
+
+    characters = pygame.sprite.Group()
     
     hero = MainHero([10, 10], 'name', 200)  # координаты окна
-    characters.append(hero)
+    characters.add(hero)
     up, down, left, right = False, False, False, False 
+
     last_x, last_y, x, y, w, h, chunk = hero.get_coords()[0], hero.get_coords()[1], hero.get_coords()[0], hero.get_coords()[1], X, Y, generate()
     game_map = render_map(chunk)
     game_map.draw(screen)
-    render_character(characters)
+    characters.draw(screen)
 
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                save()
+                #save()
                 running = False
 
             if event.type == pygame.KEYDOWN:
                 keys, flag = pygame.key.get_pressed(), True
                 last_x, last_y = hero.get_coords()[0], hero.get_coords()[1]
 
-                if keys[pygame.K_w] :
-                    up = True
+                if keys[pygame.K_w]:
+                    up, down = True, False
                 if keys[pygame.K_a]:
-                    if left != True:
-                        hero.flip_image()
-                    left = True
+                    left, right = True, False
                 if keys[pygame.K_s]:
-                    down = True
+                    down, up = True, False
                 if keys[pygame.K_d]:
-                    if right != True:
-                        hero.flip_image()
-                    right = True
+                    right, left = True, False
                     
-                
-
+                    
             if event.type == pygame.KEYUP:
                 if keys[pygame.K_w] :
-                    up = False 
+                    up = False
+                    hero.move("up", stop=True) 
                 if keys[pygame.K_a]:
                     left = False
+                    hero.move("left", stop=True)
                 if keys[pygame.K_s]:
                     down = False
+                    hero.move("down", stop=True)
                 if keys[pygame.K_d]:
                     right = False
+                    hero.move("right", stop=True)
 
         if up:
-            hero.make_move(del_y=-5)
-        if down:
-            hero.make_move(del_y=5)
-        if left:
-            hero.make_move(del_x=-5)
-        if right:
-            hero.make_move(del_x=5)
+            hero.move("up")
+        elif down:
+            hero.move("down")
+        elif left:
+            hero.move("left")
+        elif right:
+            hero.move("right")
 
         x, y = hero.get_coords()[0], hero.get_coords()[1]
 
@@ -277,7 +303,7 @@ if __name__ == "__main__":
 
         if up or down or left or right:
             game_map.draw(screen)
-            render_character(characters)
+            characters.draw(screen)
 
         pygame.display.flip()
         clock.tick(120)
