@@ -22,3 +22,10 @@ class Item:
 
     def get_durability(self):
         return self.durability
+    
+    # Editable methods
+    def use(self):
+        self.durability -= 1
+        if self.durability == 0:
+            del self
+
