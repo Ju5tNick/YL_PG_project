@@ -1,7 +1,7 @@
 import pygame
 from random import randrange, choice
 
-X, Y = 40, 20
+X, Y, FIELD_X, FIELD_Y = 40, 20, 5, 5
 
 #  +-------TILES------+
 #  | 0 - 5   -- grass |
@@ -17,8 +17,8 @@ class MainHero(pygame.sprite.Sprite):
         self.rect, self.counter = pygame.Rect(coords[0], coords[1], 19, 31), 0
 
         self.moves = {
-            "up": (0, -2), "down": (0, 2),
-            "left": (-2, 0), "right": (2, 0)
+            "up": (0, -4), "down": (0, 4),
+            "left": (-4, 0), "right": (4, 0)
             }
 
         self.still = {
@@ -120,13 +120,13 @@ def render_map(chunk: list):
         for rcol in range(X):
             tile = pygame.sprite.Sprite()
             if chunk[rrow][rcol] in range(6):
-                image = pygame.image.load(f"data/images/grass/grass{chunk[rrow][rcol] + 1}.png")  # {str(choice(list(range(1, 7))))}.png")
+                image = pygame.image.load(f"data/images/tiles/grass/grass{chunk[rrow][rcol] + 1}.png")  
             elif chunk[rrow][rcol] in range(6, 9):
-                image = pygame.image.load(f"data/images/water/water3{chunk[rrow][rcol] - 5}.png")  # {str(choice(list(range(1, 4))))}.png")
+                image = pygame.image.load(f"data/images/tiles/water/water3{chunk[rrow][rcol] - 5}.png") 
             elif chunk[rrow][rcol] in range(9, 12):
-                image = pygame.image.load(f"data/images/sand/sand{chunk[rrow][rcol] - 8}.png")  # {str(choice(list(range(1, 4))))}.png")
+                image = pygame.image.load(f"data/images/tiles/sand/sand{chunk[rrow][rcol] - 8}.png")  
             else:
-                image = pygame.image.load(f"data/images/water/water1.png")
+                image = pygame.image.load(f"data/images/tiles/water/water1.png")
 
             tile.image = image
             tile.rect = image.get_rect()
@@ -148,7 +148,7 @@ def generate():
         intermediate = []
         for j in range(X): 
          
-            if randrange(300) in range(300) and flag == False: # 0.33% шанс что новый тайл будет "началом" водоема
+            if randrange(100) in range(3) and flag == False: # 0.33% шанс что новый тайл будет "началом" водоема
                 if 2 < i < Y - 12:
                     r_lenght, r_width, flag = randrange(2, 4), randrange(7, 14), True  # длина и ширина будущего водоема
                     r_lenght_2, loc_x, r_width_2 = r_lenght, randrange(13, X - 15), r_width 
@@ -201,7 +201,7 @@ def generate():
 
 
 def save():
-    open("chunks.txt", "w").write(' '.join(chunks))
+    pass
 
 
 if __name__ == "__main__":
@@ -209,20 +209,22 @@ if __name__ == "__main__":
     screen = pygame.display.set_mode((X * 25, Y * 25))
 
     all_sprites = pygame.sprite.Group()
-    chunks = open("chunks.txt", "r").read().split()
-    running = True
+    running, field = True, [[None for _ in range(FIELD_X)] for _ in range(FIELD_Y)]
+    cur_x, cur_y = 2, 2
     clock = pygame.time.Clock()
 
     characters = pygame.sprite.Group()
+    mainhero = pygame.sprite.Group()
     
     hero = MainHero([10, 10], 'name', 200)  # координаты окна
-    characters.add(hero)
+    mainhero.add(hero)
     up, down, left, right = False, False, False, False 
 
-    last_x, last_y, x, y, w, h, chunk = hero.get_coords()[0], hero.get_coords()[1], hero.get_coords()[0], hero.get_coords()[1], X, Y, generate()
-    game_map = render_map(chunk)
+    last_x, last_y, x, y, w, h = hero.get_coords()[0], hero.get_coords()[1], hero.get_coords()[0], hero.get_coords()[1], X, Y
+    game_map = render_map(generate())
     game_map.draw(screen)
-    characters.draw(screen)
+    field[cur_y][cur_x] = game_map
+    mainhero.draw(screen)
 
     while running:
         for event in pygame.event.get():
@@ -245,7 +247,7 @@ if __name__ == "__main__":
                     
                     
             if event.type == pygame.KEYUP:
-                if keys[pygame.K_w] :
+                if keys[pygame.K_w]:
                     up = False
                     hero.move("up", stop=True) 
                 if keys[pygame.K_a]:
@@ -270,24 +272,19 @@ if __name__ == "__main__":
         x, y = hero.get_coords()[0], hero.get_coords()[1]
 
         if X * 25 <= x or x <= 0 or Y * 25 <= y or y <= 0:
-            if f"{x // w}:{y // h}" not in chunks:
-                chunk = generate()
-                game_map = render_map(chunk)
-
-                chunks.append(f"{x // w}:{y // h}")
-                new_chunk = open(f"chunks/chunk{x // w}{y // h}.txt", "w")
-                for i in range(Y):
-                    new_chunk.write(' '.join([str(j) for j in chunk[i]]) + "\n")
-                new_chunk.close()
+            if X * 25 <= x:
+                cur_x += 1
+            if x <= 0:
+                cur_x -= 1
+            if Y * 25 <= y:
+                cur_y += 1
+            if  y <= 0:
+                cur_y -= 1
+            if field[cur_y][cur_x] is None:
+                game_map = render_map(generate())
+                field[cur_y][cur_x] = game_map
             else:
-                chunk = []
-                file = open(f"chunks/chunk{x // w}{y // h}.txt", "r").read().split('\n')
-                for elem in file:
-                    chunk.append([int(el) for el in elem.split()])
-                if len(chunk) != Y:
-                    del chunk[-1]
-                #file.close()
-                game_map = render_map(chunk)
+                game_map = field[cur_y][cur_x]
 
         if X * 25 <= hero.get_coords()[0]:
             hero.set_coords(0 , hero.get_coords()[1])
@@ -301,9 +298,8 @@ if __name__ == "__main__":
         elif hero.get_coords()[1] <= 0:
             hero.set_coords(hero.get_coords()[0], Y * 25)
 
-        if up or down or left or right:
-            game_map.draw(screen)
-            characters.draw(screen)
+        game_map.draw(screen)
+        mainhero.draw(screen)
 
         pygame.display.flip()
         clock.tick(120)
