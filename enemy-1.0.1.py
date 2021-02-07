@@ -23,6 +23,7 @@ class Enemy:
                 hero.inventory.append(item)
         hero.balance += self.gold_drops
         hero.xp_progress += self.xp_drops
+        hero.check_level()
         del self
         
     def move(self):
