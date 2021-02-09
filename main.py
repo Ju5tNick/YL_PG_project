@@ -14,7 +14,7 @@ class MainHero(pygame.sprite.Sprite):
     def __init__(self, coords, name, hp):
         super().__init__(all_sprites)
         self.coords, self.hp, self.name, self.weapons, self.weapon = coords, hp, name, [], None
-        self.rect, self.counter = pygame.Rect(coords[0], coords[1], 19, 31), 0
+        self.rect, self.animation_counter = pygame.Rect(coords[0], coords[1], 19, 31), 0
 
         self.moves = {
             "up": (0, -4), "down": (0, 4),
@@ -47,12 +47,12 @@ class MainHero(pygame.sprite.Sprite):
             self.update(direction)
 
     def update(self, direction):
-        if self.counter == 5:
+        if self.animation_counter == 5:
             self.frames = self.directions[direction]
             self.cur_frame = (self.cur_frame + 1) % len(self.frames)
             self.image = self.frames[self.cur_frame]
-            self.counter = 0
-        self.counter += 1
+            self.animation_counter = 0
+        self.animation_counter += 1
 
     def is_alive(self):
         return True if self.hp > 0 else False
@@ -125,8 +125,6 @@ def render_map(chunk: list):
                 image = pygame.image.load(f"data/images/tiles/water/water3{chunk[rrow][rcol] - 5}.png") 
             elif chunk[rrow][rcol] in range(9, 12):
                 image = pygame.image.load(f"data/images/tiles/sand/sand{chunk[rrow][rcol] - 8}.png")  
-            else:
-                image = pygame.image.load(f"data/images/tiles/water/water1.png")
 
             tile.image = image
             tile.rect = image.get_rect()
@@ -148,7 +146,7 @@ def generate():
         intermediate = []
         for j in range(X): 
          
-            if randrange(100) in range(3) and flag == False: # 0.33% шанс что новый тайл будет "началом" водоема
+            if randrange(100) in range(1) and flag == False: # 0.33% шанс что новый тайл будет "началом" водоема
                 if 2 < i < Y - 12:
                     r_lenght, r_width, flag = randrange(2, 4), randrange(7, 14), True  # длина и ширина будущего водоема
                     r_lenght_2, loc_x, r_width_2 = r_lenght, randrange(13, X - 15), r_width 
@@ -159,7 +157,14 @@ def generate():
             
             elif len(intermediate) != X:
                 intermediate.append(randrange(6))
-            
+                if randrange(100) in range(1):
+                    tile = pygame.sprite.Sprite()
+                    image = pygame.image.load(f"data/images/objects/rock.png")  
+                    tile.image = image
+                    tile.rect = image.get_rect()
+                    tile.rect.x, tile.rect.y = j * 26 + randrange(15), i * 26 + randrange(15)
+                    other_object.add(tile)
+                
         if flag:
             if r_width - r_width_2 in range(0, int(r_width / 2)):
                 r_lenght, loc_x = r_lenght + randrange(choice([1, 2]), 4), loc_x - randrange(1, 3)
@@ -215,6 +220,7 @@ if __name__ == "__main__":
 
     characters = pygame.sprite.Group()
     mainhero = pygame.sprite.Group()
+    other_object = pygame.sprite.Group()
     
     hero = MainHero([10, 10], 'name', 200)  # координаты окна
     mainhero.add(hero)
@@ -280,11 +286,19 @@ if __name__ == "__main__":
                 cur_y += 1
             if  y <= 0:
                 cur_y -= 1
+
+            cur_x = FIELD_X - 1 if cur_x < 0 else cur_x
+            cur_y = FIELD_Y - 1 if cur_y < 0 else cur_y
+            cur_x = 0 if cur_x >= FIELD_X else cur_x
+            cur_y = 0 if cur_y >= FIELD_Y else cur_y
+
             if field[cur_y][cur_x] is None:
                 game_map = render_map(generate())
                 field[cur_y][cur_x] = game_map
             else:
                 game_map = field[cur_y][cur_x]
+            print(*field, sep="\n")
+            print()
 
         if X * 25 <= hero.get_coords()[0]:
             hero.set_coords(0 , hero.get_coords()[1])
@@ -298,8 +312,10 @@ if __name__ == "__main__":
         elif hero.get_coords()[1] <= 0:
             hero.set_coords(hero.get_coords()[0], Y * 25)
 
+
         game_map.draw(screen)
         mainhero.draw(screen)
+        other_object.draw(screen)
 
         pygame.display.flip()
         clock.tick(120)
