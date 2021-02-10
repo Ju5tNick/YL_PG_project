@@ -1,4 +1,7 @@
+import os
+import sys
 import pygame
+import schedule
 from random import randrange, choice
 
 X, Y, FIELD_X, FIELD_Y = 40, 20, 5, 5
@@ -15,6 +18,7 @@ class MainHero(pygame.sprite.Sprite):
         super().__init__(all_sprites)
         self.coords, self.hp, self.name, self.weapons, self.weapon = coords, hp, name, [], None
         self.rect, self.animation_counter = pygame.Rect(coords[0], coords[1], 19, 31), 0
+        
 
         self.moves = {
             "up": (0, -4), "down": (0, 4),
@@ -22,27 +26,29 @@ class MainHero(pygame.sprite.Sprite):
             }
 
         self.still = {
-            "up": pygame.image.load("data/images/mainhero/knight11.png"),
-            "down": pygame.image.load("data/images/mainhero/knight2.png"),
-            "left": pygame.image.load("data/images/mainhero/knight5.png"),
-            "right": pygame.image.load("data/images/mainhero/knight8.png")
-           }
+            "up": load_image("data/images/mainhero/knight11.png"),
+            "down": load_image("data/images/mainhero/knight2.png"),
+            "left": load_image("data/images/mainhero/knight5.png"),
+            "right": load_image("data/images/mainhero/knight8.png")
+            }
 
         self.directions = {
-            "up": [pygame.image.load("data/images/mainhero/knight9.png"), pygame.image.load("data/images/mainhero/knight10.png")],
-            "down": [pygame.image.load("data/images/mainhero/knight0.png"), pygame.image.load("data/images/mainhero/knight1.png")],
-            "left": [pygame.image.load("data/images/mainhero/knight3.png"), pygame.image.load("data/images/mainhero/knight4.png")],
-            "right": [pygame.image.load("data/images/mainhero/knight7.png"), pygame.image.load("data/images/mainhero/knight6.png")]
+            "up": [load_image("data/images/mainhero/knight9.png"), load_image("data/images/mainhero/knight10.png")],
+            "down": [load_image("data/images/mainhero/knight0.png"), load_image("data/images/mainhero/knight1.png")],
+            "left": [load_image("data/images/mainhero/knight3.png"), load_image("data/images/mainhero/knight4.png")],
+            "right": [load_image("data/images/mainhero/knight7.png"), load_image("data/images/mainhero/knight6.png")]
             }
 
         self.cur_frame = 0
-        self.image = pygame.image.load("data/images/mainhero/knight2.png")
+        self.image = load_image("data/images/mainhero/knight2.png")
+        self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.rect.move(coords[0], coords[1])
 
     def move(self, direction, stop=False):
         self.rect = self.rect.move(*self.moves[direction])
         if stop:
             self.image = self.still[direction]
+            self.mask = pygame.mask.from_surface(self.image)
         else:
             self.update(direction)
 
@@ -52,13 +58,11 @@ class MainHero(pygame.sprite.Sprite):
             self.cur_frame = (self.cur_frame + 1) % len(self.frames)
             self.image = self.frames[self.cur_frame]
             self.animation_counter = 0
+            self.mask = pygame.mask.from_surface(self.image)
         self.animation_counter += 1
 
     def is_alive(self):
         return True if self.hp > 0 else False
-    
-    def get_damage(self, amount):
-        self.hp -= amount
 
     def set_coords(self, new_x, new_y):
         self.rect.x, self.rect.y = new_x, new_y
@@ -66,53 +70,160 @@ class MainHero(pygame.sprite.Sprite):
     def get_coords(self):
         return (self.rect.x, self.rect.y)
 
-    def get_weapons(self):
-        return self.weapons
-
-    def get_name(self):
-        return self.name
-
-    def get_hp(self):
-        return self.hp
-
-    def get_image(self):
-        return self.image
-
     def get_info(self):
         weapons = ', '.join([weapon.get_name().capitalize() for weapon in self.weapons])
         return f'{self.name}\nЗдоровья: {self.hp} hp\nОружие:\n{weapons}\n\nТекущее оружие: {self.get_weapon().get_info()}'
-
-    def get_weapon(self):
-        return self.weapons[0] if self.weapon == None else self.weapon
-
-    def make_move(self, del_x=0, del_y=0):
-        self.coords[0], self.coords[1] = self.coords[0] + del_x, self.coords[1] + del_y
-
-    def add_weapon(self, weapon):
-        if type(weapon) is Weapon:
-            self.weapons.append(weapon)
-            self.weapon = weapon
-            return f'Подобрал {weapon.get_name().lower()}'
-        return 'Это не оружие'
-            
-    def next_weapon(self):
-        if self.get_weapon() == None:
-            return 'Я безоружен'
-        elif len(self.weapons) == 1:
-            return 'У меня только одно оружие'
-        else:
-            a = self.weapons.index(self.weapon)
-            if a + 1 == len(self.weapons):
-                self.weapon = self.weapons[0]
-            else:
-                self.weapon = self.weapons[a + 1]
-            return f'Сменил оружие на {self.weapon.get_name()}'
     
-    def heal(self, amount):
-        self.hp = 200 if self.hp + amount > 200 else self.hp + amount
-        return f'Полечился, теперь здоровья {self.hp}'
+    def get_inventory(self):
+        return self.inventory
+
+    def get_balance(self):
+        return self.balance
+
+    def attack(self, enemy):
+        if self.weapon:
+            hx, hy = self.coords
+            ex, ey = enemy.get_coords()
+            if ((ex - hx) ** 2 + (ey - hy) ** 2) ** 0.5 <= self.weapon.get_range():
+                # ok, do the thing
+                pass
+        else:
+            hx, hy = self.coords
+            ex, ey = enemy.get_coords()
+            if ((ex - hx) ** 2 + (ey - hy) ** 2) ** 0.5 <= 1:
+                # ok, do the thing
+                pass  # damage = 10
+            pass
+
+    def put(self, item, container):
+        if len(container.get_items()) < container.get_capacity():
+            del self.inventory[self.inventory.index(item)]
+            container.add_item(item)
+    
+    def check_level(self):
+        while self.xp_progress >= self.required_xp:
+            self.level += 1
+            self.xp_progress -= self.required_xp
+            self.required_xp += 10
 
 
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, name, base_damage, base_health, base_speed, inventory, coords, range, gold_drops, xp_drops):
+        super().__init__(all_sprites)
+        self.name, self.damage, self.health, self.speed, self.inventory = name, base_damage, base_health, base_speed, inventory
+        self.coords, self.range = coords, range
+        self.get_angry = False
+        self.rect, self.animation_counter = pygame.Rect(coords[0], coords[1], 21, 24), 0
+
+        self.still = [load_image("data/images/enemies/slime/static/0.png"), load_image("data/images/enemies/slime/static/1.png"),
+                      load_image("data/images/enemies/slime/static/2.png"), load_image("data/images/enemies/slime/static/3.png"),
+                      load_image("data/images/enemies/slime/static/4.png"), load_image("data/images/enemies/slime/static/5.png"),
+                      load_image("data/images/enemies/slime/static/6.png")]
+        self.moves = [load_image("data/images/enemies/slime/move/0.png"), load_image("data/images/enemies/slime/move/1.png"),
+                      load_image("data/images/enemies/slime/move/2.png"), load_image("data/images/enemies/slime/move/3.png"),
+                      load_image("data/images/enemies/slime/move/4.png"), load_image("data/images/enemies/slime/move/5.png"),
+                      load_image("data/images/enemies/slime/move/6.png"), load_image("data/images/enemies/slime/move/7.png")]
+        self.angry_moves = [load_image("data/images/enemies/slime/angry_move/0.png"), load_image("data/images/enemies/slime/angry_move/1.png")]
+        self.gets_angry = [load_image("data/images/enemies/slime/gets_angry/0.png"), load_image("data/images/enemies/slime/gets_angry/1.png"),
+                           load_image("data/images/enemies/slime/gets_angry/2.png"), load_image("data/images/enemies/slime/gets_angry/3.png"),
+                           load_image("data/images/enemies/slime/gets_angry/4.png")]
+
+        self.image = load_image("data/images/enemies/slime/static/0.png")
+        self.cur_frame = 0
+
+        for item in inventory:
+            if item.type == "health":
+                self.health += item.effect_value
+            if item.type == "damage":
+                self.damage += item.effect_value
+            if item.type == "speed":
+                self.speed += item.effect_value
+
+        self.vision = Vision_for_enemy(100, (self.rect.x - 95, self.rect.y - 90))
+        enemy_visions.add(self.vision)
+        self.gold_drops, self.get_angry, self.angry = gold_drops, False, False
+        self.xp_drops, self.flag = xp_drops, -1
+
+    def move(self, hero_coords):
+        flag = True
+        if self.vision.check():
+            self.get_angry = True
+            move = [self.speed, 0, -self.speed]
+            
+            diff_y, diff_x = abs(hero_coords[0] - self.rect.x), abs(hero_coords[1] - self.rect.y)
+            del_x, del_y = 0, 0
+        
+            if abs(hero_coords[0]) - abs(self.rect.x) != 10:
+                for elem in move:
+                    if abs(hero_coords[0] - (self.rect.x + elem)) < diff_y:
+                        del_y, flag = elem, False
+                    
+            if abs(hero_coords[1]) - abs(self.rect.y) != 20:
+                for elem in move:
+                    if abs(hero_coords[1] - (self.rect.y + elem)) < diff_x:
+                        del_x, flag = elem, False
+
+            self.vision.move(del_y, del_x)
+            self.rect = self.rect.move(del_y, del_x)
+        else:
+            self.get_angry, self.angry = False, False
+            #schedule.every(5).to(10).seconds.do(self.set_flag)  # работает оч криво
+            if self.flag == 1:  # пока не знаю как исправить
+                self.rect = self.rect.move(self.direction[0], self.direction[1])  # суть: через какое то время моб начинает идти в рандомную сторону
+                self.vision.move(self.direction[0], self.direction[1])  #  и через не сколько секунд прекращает
+
+        self.update(stop=flag)
+
+    def update(self, stop=False):
+        if self.animation_counter == 5:
+            if self.angry:
+                self.frames = self.angry_moves
+            elif self.get_angry:
+                self.frames, self.get_angry, self.angry = self.gets_angry, False, True
+            else:
+                self.frames = self.still if stop else self.moves
+            self.cur_frame = (self.cur_frame + 1) % len(self.frames)
+            self.image = self.frames[self.cur_frame]
+            self.animation_counter = 0
+            
+        self.animation_counter += 1
+
+    def set_flag(self):
+        print("!")
+        self.direction = (randrange(-1, 2), randrange(-1, 2))
+        self.flag = -self.flag
+        return schedule.CancelJob
+        
+    def die(self, hero):
+        for item in self.inventory:
+            if len(hero.inventory) < 40:
+                hero.inventory.append(item)
+        hero.balance += self.gold_drops
+        hero.xp_progress += self.xp_drops
+        hero.check_level()
+        del self
+    
+    def hit(self, hero):
+        hero.base_hp -= self.damage + __import__("random").randint(-(self.damage // 10), self.damage // 10)
+        
+    def get_stats(self):
+        return (self.name, self.damage, self.health, self.speed, self.range)
+
+
+class Vision_for_enemy(pygame.sprite.Sprite):
+    def __init__(self, range, coords):
+        super().__init__(all_sprites)
+        self.image = pygame.Surface((2 * range + 50, 2 * range + 50), pygame.SRCALPHA, 32)
+        pygame.draw.circle(self.image, pygame.Color("black"), (coords[0], coords[1]), range, 1)
+        self.rect = pygame.Rect(coords[0], coords[1], 2 * range, 2 * range)
+
+    def move(self, del_x, del_y):
+        self.rect = self.rect.move(del_x, del_y)
+
+    def check(self):
+        return pygame.sprite.spritecollideany(self, mainhero)
+        
+        
 
 def render_map(chunk: list):
     render_map = pygame.sprite.Group()
@@ -120,11 +231,11 @@ def render_map(chunk: list):
         for rcol in range(X):
             tile = pygame.sprite.Sprite()
             if chunk[rrow][rcol] in range(6):
-                image = pygame.image.load(f"data/images/tiles/grass/grass{chunk[rrow][rcol] + 1}.png")  
+                image = load_image(f"data/images/tiles/grass/grass{chunk[rrow][rcol] + 1}.png")  
             elif chunk[rrow][rcol] in range(6, 9):
-                image = pygame.image.load(f"data/images/tiles/water/water3{chunk[rrow][rcol] - 5}.png") 
+                image = load_image(f"data/images/tiles/water/water3{chunk[rrow][rcol] - 5}.png") 
             elif chunk[rrow][rcol] in range(9, 12):
-                image = pygame.image.load(f"data/images/tiles/sand/sand{chunk[rrow][rcol] - 8}.png")  
+                image = load_image(f"data/images/tiles/sand/sand{chunk[rrow][rcol] - 8}.png")  
 
             tile.image = image
             tile.rect = image.get_rect()
@@ -134,35 +245,43 @@ def render_map(chunk: list):
 
 
 def load_image(name, colorkey=None):
-    if not os.path.isfile(os.path.join('data', name)):
-        print(f"Файл с изображением '{os.path.join('data', name)}' не найден")
+    if not os.path.isfile(name):
+        print(f"Файл с изображением '{name}' не найден")
         sys.exit()
-    return pygame.image.load(os.path.join('data', name))
+    return pygame.image.load(name)
 
 
 def generate():
+    other_object = pygame.sprite.Group()
     chunk, flag = [], False
     for i in range(Y):
         intermediate = []
         for j in range(X): 
          
-            if randrange(100) in range(1) and flag == False: # 0.33% шанс что новый тайл будет "началом" водоема
+            if randrange(300) in range(1) and flag == False: # 0.33% шанс что новый тайл будет "началом" водоема
                 if 2 < i < Y - 12:
                     r_lenght, r_width, flag = randrange(2, 4), randrange(7, 14), True  # длина и ширина будущего водоема
                     r_lenght_2, loc_x, r_width_2 = r_lenght, randrange(13, X - 15), r_width 
          
             if flag and r_lenght_2 != 0 and sum([intermediate.count(i) for i in range(6)]) == loc_x:
                 intermediate.append(randrange(6, 9))
+                if randrange(100) in range(5):
+                    tile = pygame.sprite.Sprite()
+                    image = pygame.transform.rotate(load_image(f"data/images/objects/water_lily.png"), randrange(1, 361))  
+                    tile.image = image
+                    tile.rect = image.get_rect()
+                    tile.rect.x, tile.rect.y = (j) * 25 + randrange(10), (i) * 25 + randrange(10)
+                    other_object.add(tile)
                 r_lenght_2 -= 1
             
             elif len(intermediate) != X:
                 intermediate.append(randrange(6))
-                if randrange(100) in range(1):
+                if randrange(100) in range(50):
                     tile = pygame.sprite.Sprite()
-                    image = pygame.image.load(f"data/images/objects/rock.png")  
+                    image = load_image(f"data/images/objects/tall_grass.png")  
                     tile.image = image
                     tile.rect = image.get_rect()
-                    tile.rect.x, tile.rect.y = j * 26 + randrange(15), i * 26 + randrange(15)
+                    tile.rect.x, tile.rect.y = (j - 0.5) * 26 + randrange(10), (i - 0.5) * 26 + randrange(10)
                     other_object.add(tile)
                 
         if flag:
@@ -176,33 +295,48 @@ def generate():
 
         chunk.append(intermediate)
 
-    if choice([True, False, False]):  # 33% водоем будyт с песком
+    if choice([True, False, False]):  # 33% водоемов будyт с песком
         for i in range(Y):  # окантовка водоемов "песком"
             for j in range(X):
                 if i < Y - 1 and chunk[i][j] in list(range(6)) + list(range(9, 12)) and chunk[i + 1][j] in list(range(6, 9)):
                     chunk[i][j] = randrange(9, 12)
                     chunk[i - 1][j] = randrange(9, 12) if i < Y - 2 else 1
                     chunk[i][j - 1] = randrange(9, 12) if j != X - 2 else 1
+                    flag = True
 
                 if i - 1 != 0 and chunk[i][j] in list(range(6)) + list(range(9, 12)) and chunk[i - 1][j] in list(range(6, 9)):
                     chunk[i][j] = randrange(9, 12)
                     if i + 1 < Y:
                         chunk[i + 1][j] = randrange(9, 12) 
-                    chunk[i][j - 1] = randrange(9, 12) if j - 2 > 0 else 1     
+                    chunk[i][j - 1] = randrange(9, 12) if j - 2 > 0 else 1
+                    flag = True     
 
                 if j < X - 1 and chunk[i][j] in list(range(6)) + list(range(9, 12)) and chunk[i][j + 1] in list(range(6, 9)):
                     chunk[i][j] = randrange(9, 12)
                     chunk[i][j - 1] = randrange(9, 12) if j < X - 2 else 1
+                    flag = True
 
                 if j - 1 > 0 and chunk[i][j] in list(range(6)) + list(range(9, 12)) and chunk[i][j - 1] in list(range(6, 9)):
                     chunk[i][j] = randrange(9, 12)
                     chunk[i][j + 1] = randrange(9, 12) if j - 2 > 0 else 1
 
                 if i < Y - 2 and j < X - 2 and chunk[i][j] in list(range(6, 9)) and chunk[i + 1][j + 1] in list(range(6)):
-                    chunk[i + 1][j + 1] = randrange(9, 12) 
+                    chunk[i + 1][j + 1] = randrange(9, 12)
+                    flag = True 
                 if i - 2 != 0 and j < X - 2 and chunk[i][j] in list(range(6, 9)) and chunk[i - 1][j + 1] in list(range(6)):
                     chunk[i - 1][j + 1] = randrange(9, 12)
-    return chunk
+                    flag = True
+
+                if chunk[i][j] in range(9, 12):
+                    if randrange(100) in range(20):
+                        tile = pygame.sprite.Sprite()
+                        image = load_image(f"data/images/objects/rock{choice([1, 2])}.png")
+                        tile.image = image
+                        tile.rect = image.get_rect()
+                        tile.rect.x, tile.rect.y = (j - 0.5) * 26 + randrange(-5, 6), (i - 0.5) * 26 + randrange(-5, 6)
+                        other_object.add(tile) 
+
+    return chunk, other_object
 
 
 def save():
@@ -220,16 +354,20 @@ if __name__ == "__main__":
 
     characters = pygame.sprite.Group()
     mainhero = pygame.sprite.Group()
-    other_object = pygame.sprite.Group()
+    enemy_visions = pygame.sprite.Group()
+    
     
     hero = MainHero([10, 10], 'name', 200)  # координаты окна
+    enemy = Enemy("name", 10, 100, 2, [], [200, 200], 5, 10, 100)
     mainhero.add(hero)
+    characters.add(enemy)
     up, down, left, right = False, False, False, False 
 
     last_x, last_y, x, y, w, h = hero.get_coords()[0], hero.get_coords()[1], hero.get_coords()[0], hero.get_coords()[1], X, Y
-    game_map = render_map(generate())
+    game_map, other_obj = generate()
+    game_map = render_map(game_map)
     game_map.draw(screen)
-    field[cur_y][cur_x] = game_map
+    field[cur_y][cur_x] = (game_map, other_obj, characters, enemy_visions)
     mainhero.draw(screen)
 
     while running:
@@ -293,12 +431,12 @@ if __name__ == "__main__":
             cur_y = 0 if cur_y >= FIELD_Y else cur_y
 
             if field[cur_y][cur_x] is None:
-                game_map = render_map(generate())
-                field[cur_y][cur_x] = game_map
+                game_map, other_obj = generate()
+                game_map = render_map(game_map)
+                characters = pygame.sprite.Group()
+                field[cur_y][cur_x] = (game_map, other_obj, characters)
             else:
-                game_map = field[cur_y][cur_x]
-            print(*field, sep="\n")
-            print()
+                game_map, other_obj, characters = field[cur_y][cur_x]
 
         if X * 25 <= hero.get_coords()[0]:
             hero.set_coords(0 , hero.get_coords()[1])
@@ -312,10 +450,13 @@ if __name__ == "__main__":
         elif hero.get_coords()[1] <= 0:
             hero.set_coords(hero.get_coords()[0], Y * 25)
 
-
+        schedule.run_pending()
+        [elem.move(hero.get_coords()) for elem in characters] 
         game_map.draw(screen)
+        other_obj.draw(screen)
+        enemy_visions.draw(screen)
+        characters.draw(screen)
         mainhero.draw(screen)
-        other_object.draw(screen)
-
+        
         pygame.display.flip()
         clock.tick(120)
