@@ -2,6 +2,7 @@ import os
 import sys
 import pygame
 import schedule
+
 from random import randrange, choice
 
 X, Y, FIELD_X, FIELD_Y = 40, 20, 5, 5
@@ -142,45 +143,51 @@ class Enemy(pygame.sprite.Sprite):
         self.vision = Vision_for_enemy(100, (self.rect.x - 95, self.rect.y - 90))
         enemy_visions.add(self.vision)
         self.gold_drops, self.get_angry, self.angry = gold_drops, False, False
-        self.xp_drops, self.flag = xp_drops, -1
+        self.xp_drops, self.flag, self.can_move = xp_drops, -1, True
 
     def move(self, hero_coords):
         flag = True
         if self.vision.check():
-            self.get_angry = True
-            move = [self.speed, 0, -self.speed]
+            if self.can_move:
+                self.get_angry = True
+                move = [self.speed, 0, -self.speed]
+                
+                diff_y, diff_x = abs(hero_coords[0] - self.rect.x), abs(hero_coords[1] - self.rect.y)
+                del_x, del_y = 0, 0
             
-            diff_y, diff_x = abs(hero_coords[0] - self.rect.x), abs(hero_coords[1] - self.rect.y)
-            del_x, del_y = 0, 0
-        
-            if abs(hero_coords[0]) - abs(self.rect.x) != 10:
-                for elem in move:
-                    if abs(hero_coords[0] - (self.rect.x + elem)) < diff_y:
-                        del_y, flag = elem, False
-                    
-            if abs(hero_coords[1]) - abs(self.rect.y) != 20:
-                for elem in move:
-                    if abs(hero_coords[1] - (self.rect.y + elem)) < diff_x:
-                        del_x, flag = elem, False
+                if abs(hero_coords[0]) - abs(self.rect.x) != 10:
+                    for elem in move:
+                        if abs(hero_coords[0] - (self.rect.x + elem)) < diff_y:
+                            del_y, flag = elem, False
+                        
+                if abs(hero_coords[1]) - abs(self.rect.y) != 20:
+                    for elem in move:
+                        if abs(hero_coords[1] - (self.rect.y + elem)) < diff_x:
+                            del_x, flag = elem, False
 
-            self.vision.move(del_y, del_x)
-            self.rect = self.rect.move(del_y, del_x)
+                self.vision.move(del_y, del_x)
+                self.rect = self.rect.move(del_y, del_x)
         else:
-            self.get_angry, self.angry = False, False
-            #schedule.every(5).to(10).seconds.do(self.set_flag)  # работает оч криво
-            if self.flag == 1:  # пока не знаю как исправить
-                self.rect = self.rect.move(self.direction[0], self.direction[1])  # суть: через какое то время моб начинает идти в рандомную сторону
-                self.vision.move(self.direction[0], self.direction[1])  #  и через не сколько секунд прекращает
+            if self.angry and self.get_angry:
+                self.angry, self.get_angry = False, False
+            if self.flag == 1 and not self.angry and not self.get_angry:
+                flag = False
+                self.rect = self.rect.move(self.direction[0], self.direction[1])
+                self.vision.move(self.direction[0], self.direction[1])
 
         self.update(stop=flag)
 
     def update(self, stop=False):
         if self.animation_counter == 5:
             if self.angry:
-                self.frames = self.angry_moves
+                self.frames, self.speed, self.can_move = self.angry_moves, 3, True
+                self.angry = False if not self.vision.check() else True
             elif self.get_angry:
-                self.frames, self.get_angry, self.angry = self.gets_angry, False, True
+                self.frames, self.can_move = self.gets_angry, False
+                if self.cur_frame == 3:
+                    self.angry, self.get_angry = True, False
             else:
+                self.speed = 2
                 self.frames = self.still if stop else self.moves
             self.cur_frame = (self.cur_frame + 1) % len(self.frames)
             self.image = self.frames[self.cur_frame]
@@ -189,10 +196,8 @@ class Enemy(pygame.sprite.Sprite):
         self.animation_counter += 1
 
     def set_flag(self):
-        print("!")
-        self.direction = (randrange(-1, 2), randrange(-1, 2))
+        self.direction = (choice([1, -1]), choice([1, -1]))
         self.flag = -self.flag
-        return schedule.CancelJob
         
     def die(self, hero):
         for item in self.inventory:
@@ -370,6 +375,8 @@ if __name__ == "__main__":
     field[cur_y][cur_x] = (game_map, other_obj, characters, enemy_visions)
     mainhero.draw(screen)
 
+    schedule.every(2).seconds.do(enemy.set_flag)
+
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -388,7 +395,6 @@ if __name__ == "__main__":
                     down, up = True, False
                 if keys[pygame.K_d]:
                     right, left = True, False
-                    
                     
             if event.type == pygame.KEYUP:
                 if keys[pygame.K_w]:
@@ -434,9 +440,10 @@ if __name__ == "__main__":
                 game_map, other_obj = generate()
                 game_map = render_map(game_map)
                 characters = pygame.sprite.Group()
-                field[cur_y][cur_x] = (game_map, other_obj, characters)
+                enemy_visions = pygame.sprite.Group()
+                field[cur_y][cur_x] = (game_map, other_obj, characters, enemy_visions)
             else:
-                game_map, other_obj, characters = field[cur_y][cur_x]
+                game_map, other_obj, characters, enemy_visions = field[cur_y][cur_x]
 
         if X * 25 <= hero.get_coords()[0]:
             hero.set_coords(0 , hero.get_coords()[1])
