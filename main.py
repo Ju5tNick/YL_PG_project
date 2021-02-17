@@ -6,6 +6,7 @@ import schedule
 from random import randrange, choice
 
 X, Y, FIELD_X, FIELD_Y = 40, 20, 5, 5
+TILE_WIDTH, TILE_HEIGT = 25, 25
 
 #  +-------TILES------+
 #  | 0 - 5   -- grass |
@@ -13,14 +14,45 @@ X, Y, FIELD_X, FIELD_Y = 40, 20, 5, 5
 #  | 9 - 11  -- sand  |
 #  +------------------+
 
+class Tile_can_go(pygame.sprite.Sprite):
+
+    def __init__(self, way, x, y):
+        super().__init__(all_sprites)
+        self.image = load_image(way)
+        self.rect = self.image.get_rect()
+        self.rect.x, self.rect.y = x * TILE_WIDTH, y * TILE_HEIGT
+
+
+class Tile_cant_go(pygame.sprite.Sprite):
+
+    def __init__(self, way, x, y):
+        super().__init__(all_sprites)
+        self.image = load_image(way)
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect.x, self.rect.y = x * TILE_WIDTH, y * TILE_HEIGT
+
+
+class Tile(pygame.sprite.Sprite):
+
+    def __init__(self, x, y):
+        super().__init__(all_sprites)
+        self.image = pygame.Surface((21, 24), pygame.SRCALPHA, 32)
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect.x, self.rect.y = x, y
+
+    def move(self, x, y):
+        return self.rect.move(y, x)
+
 
 class MainHero(pygame.sprite.Sprite):
+
     def __init__(self, coords, name, hp):
         super().__init__(all_sprites)
         self.coords, self.hp, self.name, self.weapons, self.weapon = coords, hp, name, [], None
         self.rect, self.animation_counter = pygame.Rect(coords[0], coords[1], 19, 31), 0
         
-
         self.moves = {
             "up": (0, -4), "down": (0, 4),
             "left": (-4, 0), "right": (4, 0)
@@ -109,12 +141,17 @@ class MainHero(pygame.sprite.Sprite):
 
 
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, name, base_damage, base_health, base_speed, inventory, coords, range, gold_drops, xp_drops):
+
+    def __init__(self, name, base_damage, base_health, base_speed, inventory, range, gold_drops, xp_drops):
         super().__init__(all_sprites)
         self.name, self.damage, self.health, self.speed, self.inventory = name, base_damage, base_health, base_speed, inventory
-        self.coords, self.range = coords, range
+        self.range = range
+        self.rect = pygame.Rect(*[randrange(50, X * TILE_WIDTH - 50), randrange(50, Y * TILE_HEIGT - 50)], 21, 24)
+        while pygame.sprite.spritecollideany(self, cant_go_tiles):
+            self.rect = pygame.Rect(*[randrange(50, X * TILE_WIDTH - 50), randrange(50, Y * TILE_HEIGT - 50)], 21, 24)
+        
         self.get_angry = False
-        self.rect, self.animation_counter = pygame.Rect(coords[0], coords[1], 21, 24), 0
+        self.animation_counter = 0
 
         self.still = [load_image("data/images/enemies/slime/static/0.png"), load_image("data/images/enemies/slime/static/1.png"),
                       load_image("data/images/enemies/slime/static/2.png"), load_image("data/images/enemies/slime/static/3.png"),
@@ -132,15 +169,7 @@ class Enemy(pygame.sprite.Sprite):
         self.image = load_image("data/images/enemies/slime/static/0.png")
         self.cur_frame = 0
 
-        for item in inventory:
-            if item.type == "health":
-                self.health += item.effect_value
-            if item.type == "damage":
-                self.damage += item.effect_value
-            if item.type == "speed":
-                self.speed += item.effect_value
-
-        self.vision = Vision_for_enemy(100, (self.rect.x - 95, self.rect.y - 90))
+        self.vision = Vision_for_enemy(100, (self.rect.x, self.rect.y))
         enemy_visions.add(self.vision)
         self.gold_drops, self.get_angry, self.angry = gold_drops, False, False
         self.xp_drops, self.flag, self.can_move = xp_drops, -1, True
@@ -150,20 +179,28 @@ class Enemy(pygame.sprite.Sprite):
         if self.vision.check():
             if self.can_move:
                 self.get_angry = True
-                move = [self.speed, 0, -self.speed]
-                
+                move = [self.speed, 0, -self.speed]                
+
+                tile = Tile(self.rect.x, self.rect.y)
+
                 diff_y, diff_x = abs(hero_coords[0] - self.rect.x), abs(hero_coords[1] - self.rect.y)
                 del_x, del_y = 0, 0
             
                 if abs(hero_coords[0]) - abs(self.rect.x) != 10:
                     for elem in move:
                         if abs(hero_coords[0] - (self.rect.x + elem)) < diff_y:
-                            del_y, flag = elem, False
+                            if not pygame.sprite.spritecollideany(tile.move(0, elem), cant_go_tiles):
+                                del_y, flag = elem, False
+                            #else:
+                                #del_y, flag = -elem, False
                         
                 if abs(hero_coords[1]) - abs(self.rect.y) != 20:
                     for elem in move:
                         if abs(hero_coords[1] - (self.rect.y + elem)) < diff_x:
-                            del_x, flag = elem, False
+                            if not pygame.sprite.spritecollideany(self, cant_go_tiles):
+                                del_x, flag = elem, False
+                            #else:
+                                #del_x, flag = -elem, False
 
                 self.vision.move(del_y, del_x)
                 self.rect = self.rect.move(del_y, del_x)
@@ -172,6 +209,14 @@ class Enemy(pygame.sprite.Sprite):
                 self.angry, self.get_angry = False, False
             if self.flag == 1 and not self.angry and not self.get_angry:
                 flag = False
+                if self.rect.x + 1 >= X * TILE_WIDTH - 50:
+                    self.direction[0] = -1
+                elif self.rect.x - 1 <= 50:
+                    self.direction[0] = 1
+                if self.rect.y + 1 >= Y * TILE_HEIGT - 50:
+                    self.direction[1] = -1
+                elif self.rect.y - 1 <= 50:
+                    self.direction[1] = 1
                 self.rect = self.rect.move(self.direction[0], self.direction[1])
                 self.vision.move(self.direction[0], self.direction[1])
 
@@ -196,7 +241,7 @@ class Enemy(pygame.sprite.Sprite):
         self.animation_counter += 1
 
     def set_flag(self):
-        self.direction = (choice([1, -1]), choice([1, -1]))
+        self.direction = [choice([1, -1]), choice([1, -1])]
         self.flag = -self.flag
         
     def die(self, hero):
@@ -216,11 +261,12 @@ class Enemy(pygame.sprite.Sprite):
 
 
 class Vision_for_enemy(pygame.sprite.Sprite):
+
     def __init__(self, range, coords):
         super().__init__(all_sprites)
-        self.image = pygame.Surface((2 * range + 50, 2 * range + 50), pygame.SRCALPHA, 32)
-        pygame.draw.circle(self.image, pygame.Color("black"), (coords[0], coords[1]), range, 1)
-        self.rect = pygame.Rect(coords[0], coords[1], 2 * range, 2 * range)
+        self.image = pygame.Surface((3 * range, 3 * range), pygame.SRCALPHA, 32)
+        pygame.draw.circle(self.image, (70, 79, 21), (range, range), range, 1)
+        self.rect = pygame.Rect(coords[0] - range + 10.5, coords[1] - range + 12, 1.85 * range, 1.85 * range)
 
     def move(self, del_x, del_y):
         self.rect = self.rect.move(del_x, del_y)
@@ -229,24 +275,24 @@ class Vision_for_enemy(pygame.sprite.Sprite):
         return pygame.sprite.spritecollideany(self, mainhero)
         
         
-
 def render_map(chunk: list):
-    render_map = pygame.sprite.Group()
+    cant_go = pygame.sprite.Group()
+    can_go = pygame.sprite.Group()
     for rrow in range(Y):
         for rcol in range(X):
-            tile = pygame.sprite.Sprite()
+            flag = False
             if chunk[rrow][rcol] in range(6):
-                image = load_image(f"data/images/tiles/grass/grass{chunk[rrow][rcol] + 1}.png")  
+                tile = Tile_can_go(f"data/images/tiles/grass/grass{chunk[rrow][rcol] + 1}.png", rcol, rrow)  
             elif chunk[rrow][rcol] in range(6, 9):
-                image = load_image(f"data/images/tiles/water/water3{chunk[rrow][rcol] - 5}.png") 
+                tile, flag = Tile_cant_go(f"data/images/tiles/water/water3{chunk[rrow][rcol] - 5}.png", rcol, rrow), True
             elif chunk[rrow][rcol] in range(9, 12):
-                image = load_image(f"data/images/tiles/sand/sand{chunk[rrow][rcol] - 8}.png")  
+                tile = Tile_can_go(f"data/images/tiles/sand/sand{chunk[rrow][rcol] - 8}.png", rcol, rrow)  
 
-            tile.image = image
-            tile.rect = image.get_rect()
-            tile.rect.x, tile.rect.y = rcol * 25, rrow * 25
-            render_map.add(tile)
-    return render_map
+            if flag:
+                cant_go.add(tile)
+            else:
+                can_go.add(tile)
+    return can_go, cant_go
 
 
 def load_image(name, colorkey=None):
@@ -275,7 +321,7 @@ def generate():
                     image = pygame.transform.rotate(load_image(f"data/images/objects/water_lily.png"), randrange(1, 361))  
                     tile.image = image
                     tile.rect = image.get_rect()
-                    tile.rect.x, tile.rect.y = (j) * 25 + randrange(10), (i) * 25 + randrange(10)
+                    tile.rect.x, tile.rect.y = (j) * TILE_WIDTH + randrange(10), (i) * TILE_WIDTH + randrange(10)
                     other_object.add(tile)
                 r_lenght_2 -= 1
             
@@ -348,9 +394,14 @@ def save():
     pass
 
 
+def enemy_move():
+    global characters
+    [schedule.every(3).to(5).seconds.do(elem.set_flag) for elem in characters]
+
+
 if __name__ == "__main__":
     pygame.init()
-    screen = pygame.display.set_mode((X * 25, Y * 25))
+    screen = pygame.display.set_mode((X * TILE_WIDTH, Y * TILE_HEIGT))
 
     all_sprites = pygame.sprite.Group()
     running, field = True, [[None for _ in range(FIELD_X)] for _ in range(FIELD_Y)]
@@ -361,21 +412,18 @@ if __name__ == "__main__":
     mainhero = pygame.sprite.Group()
     enemy_visions = pygame.sprite.Group()
     
-    
     hero = MainHero([10, 10], 'name', 200)  # координаты окна
-    enemy = Enemy("name", 10, 100, 2, [], [200, 200], 5, 10, 100)
     mainhero.add(hero)
-    characters.add(enemy)
     up, down, left, right = False, False, False, False 
 
-    last_x, last_y, x, y, w, h = hero.get_coords()[0], hero.get_coords()[1], hero.get_coords()[0], hero.get_coords()[1], X, Y
     game_map, other_obj = generate()
-    game_map = render_map(game_map)
-    game_map.draw(screen)
-    field[cur_y][cur_x] = (game_map, other_obj, characters, enemy_visions)
+    can_go_tiles, cant_go_tiles = render_map(game_map)
+    can_go_tiles.draw(screen)
+    cant_go_tiles.draw(screen)
+    field[cur_y][cur_x] = (can_go_tiles, cant_go_tiles, other_obj, characters, enemy_visions)
     mainhero.draw(screen)
 
-    schedule.every(2).seconds.do(enemy.set_flag)
+    schedule.every(1).seconds.do(enemy_move)
 
     while running:
         for event in pygame.event.get():
@@ -385,7 +433,6 @@ if __name__ == "__main__":
 
             if event.type == pygame.KEYDOWN:
                 keys, flag = pygame.key.get_pressed(), True
-                last_x, last_y = hero.get_coords()[0], hero.get_coords()[1]
 
                 if keys[pygame.K_w]:
                     up, down = True, False
@@ -421,12 +468,13 @@ if __name__ == "__main__":
 
         x, y = hero.get_coords()[0], hero.get_coords()[1]
 
-        if X * 25 <= x or x <= 0 or Y * 25 <= y or y <= 0:
-            if X * 25 <= x:
+        if X * TILE_WIDTH <= x or x <= 0 or Y * TILE_HEIGT <= y or y <= 0:
+
+            if X * TILE_WIDTH <= x:
                 cur_x += 1
             if x <= 0:
                 cur_x -= 1
-            if Y * 25 <= y:
+            if Y * TILE_HEIGT <= y:
                 cur_y += 1
             if  y <= 0:
                 cur_y -= 1
@@ -438,28 +486,32 @@ if __name__ == "__main__":
 
             if field[cur_y][cur_x] is None:
                 game_map, other_obj = generate()
-                game_map = render_map(game_map)
-                characters = pygame.sprite.Group()
+                can_go_tiles, cant_go_tiles = render_map(game_map)
                 enemy_visions = pygame.sprite.Group()
-                field[cur_y][cur_x] = (game_map, other_obj, characters, enemy_visions)
+                characters = pygame.sprite.Group()
+                for _ in range(randrange(2, 10)):
+                    characters.add(Enemy("name", 10, 100, 2, [], 5, 10, 100))
+                field[cur_y][cur_x] = (can_go_tiles, cant_go_tiles, other_obj, characters, enemy_visions)
             else:
-                game_map, other_obj, characters, enemy_visions = field[cur_y][cur_x]
+                can_go_tiles, cant_go_tiles, other_obj, characters, enemy_visions = field[cur_y][cur_x]
 
-        if X * 25 <= hero.get_coords()[0]:
+        if X * TILE_WIDTH <= hero.get_coords()[0]:
             hero.set_coords(0 , hero.get_coords()[1])
 
         elif hero.get_coords()[0] <= 0:
-            hero.set_coords(X * 25, hero.get_coords()[1])
+            hero.set_coords(X * TILE_WIDTH, hero.get_coords()[1])
 
-        if Y * 25 <= hero.get_coords()[1]:
+        if Y * TILE_HEIGT <= hero.get_coords()[1]:
             hero.set_coords(hero.get_coords()[0], 0)
 
         elif hero.get_coords()[1] <= 0:
-            hero.set_coords(hero.get_coords()[0], Y * 25)
+            hero.set_coords(hero.get_coords()[0], Y * TILE_HEIGT)
 
         schedule.run_pending()
+
         [elem.move(hero.get_coords()) for elem in characters] 
-        game_map.draw(screen)
+        can_go_tiles.draw(screen)
+        cant_go_tiles.draw(screen)
         other_obj.draw(screen)
         enemy_visions.draw(screen)
         characters.draw(screen)
