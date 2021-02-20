@@ -84,6 +84,8 @@ class MainHero(pygame.sprite.Sprite):
             self.mask = pygame.mask.from_surface(self.image)
         else:
             self.update(direction)
+        # if something.happens():
+        #     self.barter()
 
     def update(self, direction):
         if self.animation_counter == 5:
@@ -138,6 +140,18 @@ class MainHero(pygame.sprite.Sprite):
             self.level += 1
             self.xp_progress -= self.required_xp
             self.required_xp += 10
+    
+    def barter(self):
+        global info_label
+        price = random.randint(1000, 3000)
+        if self.balance >= price:
+            hp_boost = random.randint(10, 100)
+            damage_boost = random.randint(5, 50)
+            self.hp += hp_boost
+            self.damage += damage_boost
+            info_label = f"You spent {price} coins for {hp_boost} hp and {damage_boost} damage"
+        else:
+            info_label = f"Sorry, Link, I can't give credit. Come back when you are little richer!"
 
 
 class Enemy(pygame.sprite.Sprite):
@@ -414,7 +428,9 @@ if __name__ == "__main__":
     
     hero = MainHero([10, 10], 'name', 200)  # координаты окна
     mainhero.add(hero)
-    up, down, left, right = False, False, False, False 
+    up, down, left, right = False, False, False, False
+    info_label = ""
+    label_time = 0
 
     game_map, other_obj = generate()
     can_go_tiles, cant_go_tiles = render_map(game_map)
@@ -516,6 +532,18 @@ if __name__ == "__main__":
         enemy_visions.draw(screen)
         characters.draw(screen)
         mainhero.draw(screen)
+        if label_time == 5000:
+            info_label = ""
+            label_time = 0
+        if info_label:
+            font = pygame.font.Font(None, 30)
+            text = font.render(info_label, True, (100, 100, 255))
+            text_x = 500 - text.get_width() // 2
+            text_y = 250 - text.get_height() // 2
+            text_w = text.get_width()
+            text_h = text.get_height()
+            screen.blit(text, (text_x, text_y))
+            label_time += 10
         
         pygame.display.flip()
         clock.tick(120)
