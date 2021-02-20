@@ -4,6 +4,7 @@ import pygame
 import schedule
 
 from random import randrange, choice
+from math import asin, radians, degrees, sin
 
 X, Y, FIELD_X, FIELD_Y = 40, 20, 5, 5
 TILE_WIDTH, TILE_HEIGT = 25, 25
@@ -33,26 +34,14 @@ class Tile_cant_go(pygame.sprite.Sprite):
         self.rect.x, self.rect.y = x * TILE_WIDTH, y * TILE_HEIGT
 
 
-class Tile(pygame.sprite.Sprite):
-
-    def __init__(self, x, y):
-        super().__init__(all_sprites)
-        self.image = pygame.Surface((21, 24), pygame.SRCALPHA, 32)
-        self.rect = self.image.get_rect()
-        self.mask = pygame.mask.from_surface(self.image)
-        self.rect.x, self.rect.y = x, y
-
-    def move(self, x, y):
-        return self.rect.move(y, x)
-
-
 class MainHero(pygame.sprite.Sprite):
 
     def __init__(self, coords, name, hp):
         super().__init__(all_sprites)
-        self.coords, self.hp, self.name, self.weapons, self.weapon = coords, hp, name, [], None
-        self.rect, self.animation_counter = pygame.Rect(coords[0], coords[1], 19, 31), 0
-        
+        self.coords, self.hp, self.name, self.weapon, self.weapons = coords, hp, name, None, []
+        self.rect, self.animation_counter, self.balance, self.xp_progress = pygame.Rect(coords[0], coords[1], 19, 31), 0, 0, 0
+        self.required_xp, self.level, self.max_hp = 100, 0, hp
+
         self.moves = {
             "up": (0, -4), "down": (0, 4),
             "left": (-4, 0), "right": (4, 0)
@@ -84,8 +73,15 @@ class MainHero(pygame.sprite.Sprite):
             self.mask = pygame.mask.from_surface(self.image)
         else:
             self.update(direction)
-        # if something.happens():
-        #     self.barter()
+
+    def get_hp(self):
+        return self.hp
+
+    def get_max_hp(self):
+        return self.max_hp
+
+    def get_damage(self, damage):
+        self.hp -= damage
 
     def update(self, direction):
         if self.animation_counter == 5:
@@ -94,6 +90,8 @@ class MainHero(pygame.sprite.Sprite):
             self.image = self.frames[self.cur_frame]
             self.animation_counter = 0
             self.mask = pygame.mask.from_surface(self.image)
+            if self.hp <= self.max_hp:
+                self.hp += 1
         self.animation_counter += 1
 
     def is_alive(self):
@@ -103,63 +101,74 @@ class MainHero(pygame.sprite.Sprite):
         self.rect.x, self.rect.y = new_x, new_y
 
     def get_coords(self):
-        return (self.rect.x, self.rect.y)
+        return self.rect.x, self.rect.y
 
     def get_info(self):
         weapons = ', '.join([weapon.get_name().capitalize() for weapon in self.weapons])
         return f'{self.name}\nЗдоровья: {self.hp} hp\nОружие:\n{weapons}\n\nТекущее оружие: {self.get_weapon().get_info()}'
-    
-    def get_inventory(self):
-        return self.inventory
 
     def get_balance(self):
         return self.balance
 
-    def attack(self, enemy):
-        if self.weapon:
-            hx, hy = self.coords
-            ex, ey = enemy.get_coords()
-            if ((ex - hx) ** 2 + (ey - hy) ** 2) ** 0.5 <= self.weapon.get_range():
-                # ok, do the thing
-                pass
-        else:
-            hx, hy = self.coords
-            ex, ey = enemy.get_coords()
-            if ((ex - hx) ** 2 + (ey - hy) ** 2) ** 0.5 <= 1:
-                # ok, do the thing
-                pass  # damage = 10
-            pass
+    def add_weapon(self, weapon):
+        if type(weapon) is Weapon:
+            self.weapons.append(weapon)
+            self.weapon = weapon
+            weapons.add(weapon)
 
-    def put(self, item, container):
-        if len(container.get_items()) < container.get_capacity():
-            del self.inventory[self.inventory.index(item)]
-            container.add_item(item)
-    
+    def attack(self, enemy):
+        enemy.get_damage(self.weapon.get_damage())
+
     def check_level(self):
         while self.xp_progress >= self.required_xp:
             self.level += 1
             self.xp_progress -= self.required_xp
             self.required_xp += 10
-    
-    def barter(self):
-        global info_label
-        price = random.randint(1000, 3000)
-        if self.balance >= price:
-            hp_boost = random.randint(10, 100)
-            damage_boost = random.randint(5, 50)
-            self.hp += hp_boost
-            self.damage += damage_boost
-            info_label = f"You spent {price} coins for {hp_boost} hp and {damage_boost} damage"
-        else:
-            info_label = f"Sorry, Link, I can't give credit. Come back when you are little richer!"
+
+
+class Weapon(pygame.sprite.Sprite):
+
+    def __init__(self, damage, coords, range):
+        super().__init__(all_sprites)
+        self.image, self.default_image = load_image("data/images/sword/sword.png"), load_image("data/images/sword/sword.png")
+        self.mask, self.range, self.damage = pygame.mask.from_surface(self.image), range, damage
+        self.rect, self.crossing = self.image.get_rect(), True
+
+        self.flips = {"++": -90, "=+": -135, "-+": -180, "-=": 135, "": -1,
+                      "--": 90, "=-": 45, "+-": 0, "+=": -45, "==": -1}
+
+    def move(self, x, y, del_x, del_y):
+        if self.flips[''.join(self.check(del_x, del_y))] != -1:
+            self.image = pygame.transform.rotate(self.default_image, self.flips[''.join(self.check(del_x, del_y))])
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect.x, self.rect.y = x, y
+        hurt_enemies = pygame.sprite.spritecollide(self, enemies, False)
+        if self.crossing:
+            for enemy in hurt_enemies:
+                hero.attack(enemy)
+        self.crossing = True if not pygame.sprite.spritecollide(self, enemies, False) else False
+
+    def get_range(self):
+        return self.range
+
+    def get_damage(self):
+        return self.damage
+
+    def check(self, x, y):
+        result = ["", ""]
+        result[0] = "+" if x > 0 else "-"
+        result[1] = "+" if y > 0 else "-"
+        result[0] = "=" if x in range(-3, 4) else result[0]
+        result[1] = "=" if y in range(-3, 4) else result[1]
+        return result
 
 
 class Enemy(pygame.sprite.Sprite):
 
-    def __init__(self, name, base_damage, base_health, base_speed, inventory, range, gold_drops, xp_drops):
+    def __init__(self, name, base_damage, base_health, base_speed, range, gold_drops, xp_drops):
         super().__init__(all_sprites)
-        self.name, self.damage, self.health, self.speed, self.inventory = name, base_damage, base_health, base_speed, inventory
-        self.range = range
+        self.name, self.damage, self.health, self.speed = name, base_damage, base_health, base_speed
+        self.range, self.die_flag, self.max_health = range, False, base_health
         self.rect = pygame.Rect(*[randrange(50, X * TILE_WIDTH - 50), randrange(50, Y * TILE_HEIGT - 50)], 21, 24)
         while pygame.sprite.spritecollideany(self, cant_go_tiles):
             self.rect = pygame.Rect(*[randrange(50, X * TILE_WIDTH - 50), randrange(50, Y * TILE_HEIGT - 50)], 21, 24)
@@ -179,23 +188,26 @@ class Enemy(pygame.sprite.Sprite):
         self.gets_angry = [load_image("data/images/enemies/slime/gets_angry/0.png"), load_image("data/images/enemies/slime/gets_angry/1.png"),
                            load_image("data/images/enemies/slime/gets_angry/2.png"), load_image("data/images/enemies/slime/gets_angry/3.png"),
                            load_image("data/images/enemies/slime/gets_angry/4.png")]
+        self.die_ani = [load_image("data/images/enemies/slime/die/0.png"), load_image("data/images/enemies/slime/die/1.png"),
+                        load_image("data/images/enemies/slime/die/2.png"), load_image("data/images/enemies/slime/die/3.png"),
+                        load_image("data/images/enemies/slime/die/4.png"), load_image("data/images/enemies/slime/die/5.png")]
 
         self.image = load_image("data/images/enemies/slime/static/0.png")
-        self.cur_frame = 0
+        self.cur_frame, self.frames = 0, []
 
-        self.vision = Vision_for_enemy(100, (self.rect.x, self.rect.y))
+        self.vision = Vision_for_enemy(100, (self.rect.x, self.rect.y), self)
         enemy_visions.add(self.vision)
         self.gold_drops, self.get_angry, self.angry = gold_drops, False, False
         self.xp_drops, self.flag, self.can_move = xp_drops, -1, True
 
     def move(self, hero_coords):
         flag = True
+        if self.frames == self.die_ani:
+            self.can_move = False
         if self.vision.check():
             if self.can_move:
                 self.get_angry = True
                 move = [self.speed, 0, -self.speed]                
-
-                tile = Tile(self.rect.x, self.rect.y)
 
                 diff_y, diff_x = abs(hero_coords[0] - self.rect.x), abs(hero_coords[1] - self.rect.y)
                 del_x, del_y = 0, 0
@@ -203,25 +215,19 @@ class Enemy(pygame.sprite.Sprite):
                 if abs(hero_coords[0]) - abs(self.rect.x) != 10:
                     for elem in move:
                         if abs(hero_coords[0] - (self.rect.x + elem)) < diff_y:
-                            if not pygame.sprite.spritecollideany(tile.move(0, elem), cant_go_tiles):
-                                del_y, flag = elem, False
-                            #else:
-                                #del_y, flag = -elem, False
-                        
+                            del_y, flag = elem, False
+                            
                 if abs(hero_coords[1]) - abs(self.rect.y) != 20:
                     for elem in move:
                         if abs(hero_coords[1] - (self.rect.y + elem)) < diff_x:
-                            if not pygame.sprite.spritecollideany(self, cant_go_tiles):
-                                del_x, flag = elem, False
-                            #else:
-                                #del_x, flag = -elem, False
-
+                            del_x, flag = elem, False
+                        
                 self.vision.move(del_y, del_x)
                 self.rect = self.rect.move(del_y, del_x)
         else:
             if self.angry and self.get_angry:
                 self.angry, self.get_angry = False, False
-            if self.flag == 1 and not self.angry and not self.get_angry:
+            if self.flag == 1 and not self.angry and not self.get_angry and self.direction != [0, 0] and self.can_move:
                 flag = False
                 if self.rect.x + 1 >= X * TILE_WIDTH - 50:
                     self.direction[0] = -1
@@ -234,41 +240,66 @@ class Enemy(pygame.sprite.Sprite):
                 self.rect = self.rect.move(self.direction[0], self.direction[1])
                 self.vision.move(self.direction[0], self.direction[1])
 
+        
+
         self.update(stop=flag)
 
     def update(self, stop=False):
         if self.animation_counter == 5:
-            if self.angry:
-                self.frames, self.speed, self.can_move = self.angry_moves, 3, True
-                self.angry = False if not self.vision.check() else True
-            elif self.get_angry:
-                self.frames, self.can_move = self.gets_angry, False
-                if self.cur_frame == 3:
-                    self.angry, self.get_angry = True, False
+            if not self.die_flag:
+                if self.angry:
+                    self.frames, self.speed, self.can_move = self.angry_moves, 3, True
+                    self.angry = False if not self.vision.check() else True
+                elif self.get_angry:
+                    self.frames, self.can_move = self.gets_angry, False
+                    if self.cur_frame == 3:
+                        self.angry, self.get_angry = True, False
+                else:
+                    self.speed = 2
+                    self.frames = self.still if stop else self.moves
             else:
-                self.speed = 2
-                self.frames = self.still if stop else self.moves
+                if self.image == self.die_ani[-1]:
+                    self.kill()
+                self.frames = self.die_ani
             self.cur_frame = (self.cur_frame + 1) % len(self.frames)
             self.image = self.frames[self.cur_frame]
             self.animation_counter = 0
-            
+            if self.health <= self.max_health:
+                self.health += 1
+
+            if abs(hero.get_coords()[0] - self.rect.x) <= 10 and abs(hero.get_coords()[1] - self.rect.y) <= 10:
+                self.hit(hero)
+
         self.animation_counter += 1
 
     def set_flag(self):
-        self.direction = [choice([1, -1]), choice([1, -1])]
+        self.direction = [choice([1, 0, -1]), choice([1, 0, -1])]
         self.flag = -self.flag
+
+    def get_damage(self, damage):
+        self.health -= damage
+        if -25 <= self.health <= -1:
+            self.die(hero)
+
+    def get_coords(self):
+        return self.rect.x, self.rect.y
+
+    def get_health(self):
+        return self.health
+
+    def get_max_health(self):
+        return self.max_health
         
     def die(self, hero):
-        for item in self.inventory:
-            if len(hero.inventory) < 40:
-                hero.inventory.append(item)
-        hero.balance += self.gold_drops
-        hero.xp_progress += self.xp_drops
-        hero.check_level()
-        del self
+        if self.health <= 0:
+            hero.balance += self.gold_drops
+            hero.xp_progress += self.xp_drops
+            hero.check_level()
+            self.vision.kill()
+            self.cur_frame, self.die_flag = 0, True
     
     def hit(self, hero):
-        hero.base_hp -= self.damage + __import__("random").randint(-(self.damage // 10), self.damage // 10)
+        hero.get_damage(self.damage + __import__("random").randint(-(self.damage // 10), self.damage // 10))
         
     def get_stats(self):
         return (self.name, self.damage, self.health, self.speed, self.range)
@@ -276,11 +307,17 @@ class Enemy(pygame.sprite.Sprite):
 
 class Vision_for_enemy(pygame.sprite.Sprite):
 
-    def __init__(self, range, coords):
+    def __init__(self, range, coords, enemy):
         super().__init__(all_sprites)
-        self.image = pygame.Surface((3 * range, 3 * range), pygame.SRCALPHA, 32)
-        pygame.draw.circle(self.image, (70, 79, 21), (range, range), range, 1)
-        self.rect = pygame.Rect(coords[0] - range + 10.5, coords[1] - range + 12, 1.85 * range, 1.85 * range)
+        self.host, self.range = enemy, range
+        self.image = pygame.Surface((3 * self.range, 3 * self.range), pygame.SRCALPHA, 32)
+        pygame.draw.circle(self.image, (70, 79, 21), (self.range, self.range), self.range, 1)
+        pygame.draw.rect(self.image, (255, 0, 0), (self.range - 10, self.range - 16, 22, 5))
+        self.rect = pygame.Rect(coords[0] - self.range + 10.5, coords[1] - self.range + 12, 1.85 * self.range, 1.85 * self.range)
+
+    def update(self):
+        pygame.draw.rect(self.image, (0, 0, 0), (self.range - 10, self.range - 16, 22, 5))
+        pygame.draw.rect(self.image, (255, 0, 0), (self.range - 9, self.range - 15, (self.host.get_health() / self.host.get_max_health() * 22 - 2), 3))
 
     def move(self, del_x, del_y):
         self.rect = self.rect.move(del_x, del_y)
@@ -409,37 +446,52 @@ def save():
 
 
 def enemy_move():
-    global characters
-    [schedule.every(3).to(5).seconds.do(elem.set_flag) for elem in characters]
+    global enemies
+    [schedule.every(3).to(5).seconds.do(elem.set_flag) for elem in enemies]
 
 
+def draw_interface():
+    pygame.draw.rect(screen, (0, 0, 0), (X * TILE_WIDTH - 155, 5, 150, 10))
+    pygame.draw.rect(screen, (255, 0, 0), (X * TILE_WIDTH - 154, 6, (hero.get_hp() / hero.get_max_hp() * 150 - 2), 8))
+    screen.blit(pygame.font.Font(None, 17).render(str(hero.get_hp()).rjust(3, '0'), True, (255, 255, 255)), (X * TILE_WIDTH - 75, 5))
+    screen.blit(load_image("data/images/objects/heart.png"), (X * TILE_WIDTH - 90, 3))
+    screen.blit(font.render(str(hero.get_balance()).rjust(5, '0'), True, (254, 226, 66)), (X * TILE_WIDTH - 70, 20))
+    screen.blit(load_image("data/images/objects/coin.png"), (X * TILE_WIDTH - 21, 17))
+
+ 
 if __name__ == "__main__":
     pygame.init()
     screen = pygame.display.set_mode((X * TILE_WIDTH, Y * TILE_HEIGT))
+    font = pygame.font.Font(None, 25)
+    pygame.mouse.set_visible(False)
+    pygame.display.set_caption('PyRogue')
+    pygame.display.set_icon(load_image("data/images/objects/logo.png"))
 
     all_sprites = pygame.sprite.Group()
     running, field = True, [[None for _ in range(FIELD_X)] for _ in range(FIELD_Y)]
     cur_x, cur_y = 2, 2
     clock = pygame.time.Clock()
 
-    characters = pygame.sprite.Group()
+    enemies = pygame.sprite.Group()
     mainhero = pygame.sprite.Group()
     enemy_visions = pygame.sprite.Group()
+    weapons = pygame.sprite.Group()
     
     hero = MainHero([10, 10], 'name', 200)  # координаты окна
+    hero.add_weapon(Weapon(10, [20, 10], 100))
     mainhero.add(hero)
-    up, down, left, right = False, False, False, False
-    info_label = ""
-    label_time = 0
+    up, down, left, right = False, False, False, False 
 
     game_map, other_obj = generate()
     can_go_tiles, cant_go_tiles = render_map(game_map)
     can_go_tiles.draw(screen)
     cant_go_tiles.draw(screen)
-    field[cur_y][cur_x] = (can_go_tiles, cant_go_tiles, other_obj, characters, enemy_visions)
+    field[cur_y][cur_x] = (can_go_tiles, cant_go_tiles, other_obj, enemies, enemy_visions)
     mainhero.draw(screen)
+    weapons.draw(screen)
+    draw_interface()
 
-    schedule.every(1).seconds.do(enemy_move)
+    schedule.every(2).to(5).seconds.do(enemy_move)
 
     while running:
         for event in pygame.event.get():
@@ -473,6 +525,9 @@ if __name__ == "__main__":
                     right = False
                     hero.move("right", stop=True)
 
+            if event.type == pygame.MOUSEMOTION and pygame.mouse.get_focused():
+                [sword.move(*event.pos, *event.rel) for sword in weapons]
+
         if up:
             hero.move("up")
         elif down:
@@ -504,12 +559,12 @@ if __name__ == "__main__":
                 game_map, other_obj = generate()
                 can_go_tiles, cant_go_tiles = render_map(game_map)
                 enemy_visions = pygame.sprite.Group()
-                characters = pygame.sprite.Group()
-                for _ in range(randrange(2, 10)):
-                    characters.add(Enemy("name", 10, 100, 2, [], 5, 10, 100))
-                field[cur_y][cur_x] = (can_go_tiles, cant_go_tiles, other_obj, characters, enemy_visions)
+                enemies = pygame.sprite.Group()
+                for _ in range(randrange(10, 20)):
+                    enemies.add(Enemy("name", 10, 100, 2, 5, randrange(5, 15), 100))
+                field[cur_y][cur_x] = (can_go_tiles, cant_go_tiles, other_obj, enemies, enemy_visions)
             else:
-                can_go_tiles, cant_go_tiles, other_obj, characters, enemy_visions = field[cur_y][cur_x]
+                can_go_tiles, cant_go_tiles, other_obj, enemies, enemy_visions = field[cur_y][cur_x]
 
         if X * TILE_WIDTH <= hero.get_coords()[0]:
             hero.set_coords(0 , hero.get_coords()[1])
@@ -525,25 +580,16 @@ if __name__ == "__main__":
 
         schedule.run_pending()
 
-        [elem.move(hero.get_coords()) for elem in characters] 
+        [elem.update() for elem in enemy_visions]
+        [elem.move(hero.get_coords()) for elem in enemies] 
         can_go_tiles.draw(screen)
         cant_go_tiles.draw(screen)
         other_obj.draw(screen)
         enemy_visions.draw(screen)
-        characters.draw(screen)
+        enemies.draw(screen)
         mainhero.draw(screen)
-        if label_time == 5000:
-            info_label = ""
-            label_time = 0
-        if info_label:
-            font = pygame.font.Font(None, 30)
-            text = font.render(info_label, True, (100, 100, 255))
-            text_x = 500 - text.get_width() // 2
-            text_y = 250 - text.get_height() // 2
-            text_w = text.get_width()
-            text_h = text.get_height()
-            screen.blit(text, (text_x, text_y))
-            label_time += 10
+        weapons.draw(screen)
+        draw_interface()
         
         pygame.display.flip()
         clock.tick(120)
