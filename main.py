@@ -887,4 +887,4 @@ if __name__ == "__main__":
         draw_interface()
             
         pygame.display.flip()
-        clock.tick(120)
+        clock.tick(30)
