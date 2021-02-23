@@ -683,7 +683,7 @@ if __name__ == "__main__":
     field = [[None for _ in range(FIELD_X)] for _ in range(FIELD_Y)]
     cur_x, cur_y = 2, 2
     is_trader, weapon_activated = False, False
-    current_page, is_sold = 0, False
+    current_page, is_sold = 1, False
     clock = pygame.time.Clock()
 
     enemies = pygame.sprite.Group()
@@ -778,9 +778,8 @@ if __name__ == "__main__":
                 pygame.mouse.set_visible(True)
                 screen.fill((120, 120, 120))
                 for i in range(4):
-                    screen.blit({1: weapons_logo, 0: dishes}[nearest_trader.get_trades()[current_page - 1 * 4 + i][1]][i], (5, 30 + 100 * i - 3))
-                    screen.blit(pygame.font.Font(None, 30).render(f"Price: {nearest_trader.get_trades()[current_page - 1 * 4 + i][0]}, effect: {('HP', 'damage')[nearest_trader.get_trades()[current_page * 4 + i][1]]}, effect value: {nearest_trader.get_trades()[current_page * 4 + i][2]}, stock: {nearest_trader.get_trades()[current_page * 4 + i][3]}", True, (0, 0, 0)), (30, 30 + 100 * i))
-
+                    screen.blit({1: weapons_logo, 0: dishes}[nearest_trader.get_trades()[current_page * 4 + i][1]][i], (5, 30 + 100 * i - 3))
+                    screen.blit(pygame.font.Font(None, 30).render(f"Price: {nearest_trader.get_trades()[current_page * 4 + i][0]}, effect: {('HP', 'damage')[nearest_trader.get_trades()[current_page * 4 + i][1]]}, effect value: {nearest_trader.get_trades()[current_page * 4 + i][2]}, stock: {nearest_trader.get_trades()[current_page * 4 + i][3]}", True, (0, 0, 0)), (30, 30 + 100 * i))
                 screen.blit(pygame.font.Font(None, 40).render(
                     f"Previous",
                     True, (0, 0, 0)), (200, 420))
